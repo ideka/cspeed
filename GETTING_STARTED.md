@@ -13,7 +13,7 @@ original ROM at runtime for assets. No emulator is involved.
 | Internal name / game code | `CAL SPEED` / `NCLE`, version 0 |
 | CIC | 6102 |
 | Entry point | `0x80000400` (ROM offset `0x1000`) |
-| BSS clear in boot | `0x8002C160`, length `0x375B0` → text+data ≈ ROM `0x1000`..`0x2CD60` |
+| BSS clear in boot | `0x8001C160`, length `0x375B0` → text+data = ROM `0x1000`..`0x1CD60` |
 | Graphics microcode | `RSP Gfx ucode F3DEX.NoN fifo 2.04` (stock Nintendo — RT64 supports it) |
 | Audio | libultra audio lib (`seqplayer.c`, `sndplayer.c`, `synthesizer.c` asserts) → stock `aspMain` RSP ucode |
 | Compiler (likely) | SGI IDO, judging from libultra assert strings — N64Recomp's best-tested input |
@@ -26,9 +26,9 @@ That means the symbol list has to be produced from scratch — see "The hard par
 ## Memory layout (worked out 2026-10-14)
 | Segment | ROM range | RAM range | Notes |
 |---|---|---|---|
-| boot | `0x1000`..`0x2CD60` | `0x80000400`..`0x8002C160` | text+data; libultra + early game code |
-| boot BSS | – | `0x8002C160`..`0x80063710` | cleared by the entry stub |
-| main | `0x2CD60`..`0xA6C70` | `0x80063710`..`0x800DD620` | loaded contiguously after boot BSS; last code ≈ `0x800D20A0`, then data |
+| boot | `0x1000`..`0x1CD60` | `0x80000400`..`0x8001C160` | text+data; libultra + early game code |
+| boot BSS | – | `0x8001C160`..`0x80053710` | cleared by the entry stub |
+| main | `0x1CD60`..`0xA6C70` | `0x80053710`..`0x800DD620` | loaded contiguously after boot BSS; last code ≈ `0x800D20A0`, then data |
 | main BSS | – | `0x800DD620`..~`0x80170000` | estimate from address references |
 | cart | `0x0`..`0x1000000` | `0xB0000000`.. | PI domain 1 view of the ROM |
 
