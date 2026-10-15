@@ -25,6 +25,11 @@ far. Newest findings go into the item they belong to.
   scene, not part of the 2D HUD list) and tag them; `src/game/graphics.cpp` already enables the
   extended GBI for every frame.
 
+### Run the game at 60 FPS natively
+- The game runs at 30 FPS and RT64's frame interpolation fills in the rest, which causes the jitter
+  above. Try making the game itself run at 60 FPS (VI retrace count / frame pacing, and whatever
+  game logic is tied to the frame rate), so interpolation is only needed above 60.
+
 ### Midway logo flashes before animating in
 - On the startup screen, the Midway word briefly appears off to the side for a moment before its
   animation starts. Does not happen at the original framerate, so it is the same interpolation issue

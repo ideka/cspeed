@@ -66,16 +66,23 @@ bool expand_enabled() {
     return ultramodern::renderer::get_graphics_config().ar_option == ultramodern::renderer::AspectRatio::Expand;
 }
 
-// Widescreen only applies during races. Menus combine a 4:3 background image with 3D objects that
-// slide in from outside the 4:3 area, which a wider view would reveal. The game mode at 0x80141E00
-// is 1 in races but also in the race setup menus, so a race is recognised by the speedometer needle
-// having been drawn in the previous frame (see cspeed_widescreen_frame_submit).
+// Widescreen only applies to the race view (the race itself and the results shown over it). Menus
+// combine a 4:3 background image with 3D objects that slide in from outside the 4:3 area, which a
+// wider view would reveal. The game mode at 0x80141E00 is 1 in races but also in the race setup
+// menus, so the race view is recognised by the previous frame (see cspeed_widescreen_frame_submit):
+// it fills the 3D area with the track's sky colour, where the menus fill it with black. The race
+// HUD is recognised by the speedometer needle.
 constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;
 constexpr int32_t GAME_MODE_RACE = 1;
+bool race_view_last_frame = false;
 bool needle_drawn_last_frame = false;
 
+bool in_race_view(uint8_t* rdram) {
+    return MEM_W(0, GAME_MODE) == GAME_MODE_RACE && race_view_last_frame;
+}
+
 bool in_race(uint8_t* rdram) {
-    return MEM_W(0, GAME_MODE) == GAME_MODE_RACE && needle_drawn_last_frame;
+    return in_race_view(rdram) && needle_drawn_last_frame;
 }
 
 } // namespace
@@ -86,7 +93,7 @@ bool in_race(uint8_t* rdram) {
 // screen: races fill the whole screen, and with the Expand aspect ratio this is also what lets RT64
 // widen the scene. Split-screen viewports are left untouched.
 extern "C" void cspeed_widescreen_camera_scissor(uint8_t* rdram, recomp_context* ctx) {
-    if (!in_race(rdram)) {
+    if (!in_race_view(rdram)) {
         return;
     }
     gpr dl = ctx->r8;
@@ -191,10 +198,10 @@ extern "C" void cspeed_hud_begin(uint8_t* rdram, recomp_context* ctx) {
     last_rect_align = ~0ull;
     hud_scissor = HudScissor::Unset;
     hud_list_start = 0;
-    if (!in_race(rdram)) {
+    if (!in_race_view(rdram)) {
         return;
     }
-    // The game's own HUD scissor stops at the old border; races fill the whole screen.
+    // The game's own HUD scissor stops at the old border; the race view fills the whole screen.
     hud_list_start = (uint32_t)MEM_W(0, HUD_DL_HEAD);
     set_hud_scissor(rdram, expand_enabled() ? HudScissor::Wide : HudScissor::Plain);
 }
@@ -256,6 +263,26 @@ constexpr uint32_t NEEDLE_COLOR = 0xC80000FF;
 constexpr uint32_t NEEDLE_DL_BASE = PROLOGUE_BASE + 0x1000;   // one list per prologue slot
 constexpr uint32_t NEEDLE_DL_SIZE = 128;
 constexpr gpr VIEWPORTS = (gpr)(int32_t)0x80022FB0;            // pointer to this frame's Vp array
+
+// The frame setup fills the 3D area's sky (10..120) and ground (120..229) with a colour before
+// drawing: the track's sky colour in the race view, black in menus.
+bool has_sky_fill(uint8_t* rdram, uint32_t dl) {
+    uint32_t color = 0;
+    for (int i = 0; i < 64; i++, dl += 8) {
+        uint32_t w0 = (uint32_t)MEM_W(0, (gpr)(int32_t)dl);
+        uint32_t w1 = (uint32_t)MEM_W(4, (gpr)(int32_t)dl);
+        uint32_t op = w0 >> 24;
+        if (op == 0xDA || op == 0x01 || op == 0xDF) {
+            break;
+        }
+        if (op == 0xF7) {
+            color = w1;
+        } else if (op == 0xF6 && (w0 & 0xFFF) == 120 * 4 && (w1 & 0xFFF) == 10 * 4) {
+            return (color & 0xFFFEFFFE) != 0;   // ignore the alpha bits of the 16-bit fill colour
+        }
+    }
+    return false;
+}
 
 void remove_borders(uint8_t* rdram, uint32_t dl) {
     // The borders come within the first few dozen commands, before any geometry: narrow full-height
@@ -395,13 +422,14 @@ void anchor_needle(uint8_t* rdram, uint32_t vtx_addr, uint32_t tri_addr, uint32_
 // California Speed draws a black border around the picture (12 px left and right, 10 px top and
 // bottom) that a CRT's overscan hid. RT64 is told to zoom every screen by 1/24 on each side to keep
 // it out of view, like a TV would; with Expand, RT64 renders the picture wide enough that the sides
-// lose the same amount as on a 4:3 screen, so the HUD keeps its distance to the edges. Races also
-// remove the border (remove_borders and the camera/HUD scissors) so the widened picture has no
+// lose the same amount as on a 4:3 screen, so the HUD keeps its distance to the edges. The race view
+// also removes the border (remove_borders and the camera/HUD scissors) so the widened picture has no
 // black strips in it.
 constexpr float OVERSCAN_CROP = 1.0f / 24.0f;
 
 extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
     RT64::VI::setOverscanCrop(OVERSCAN_CROP);
+    race_view_last_frame = false;
     needle_drawn_last_frame = false;
     if (MEM_W(0, GAME_MODE) != GAME_MODE_RACE) {
         return;
@@ -415,15 +443,16 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     if ((dl & 0xFF000000) != 0x80000000) {
         return;
     }
-    uint32_t tri = 0;
-    uint32_t needle = find_needle(rdram, dl, &tri);
-    needle_drawn_last_frame = (needle != 0);
-    if (!needle_drawn_last_frame) {
+    race_view_last_frame = has_sky_fill(rdram, dl);
+    if (!race_view_last_frame) {
         return;
     }
     remove_borders(rdram, dl);
     widen_full_width_fills(rdram);
-    if (expand_enabled()) {
+    uint32_t tri = 0;
+    uint32_t needle = find_needle(rdram, dl, &tri);
+    needle_drawn_last_frame = (needle != 0);
+    if (needle_drawn_last_frame && expand_enabled()) {
         anchor_needle(rdram, needle, tri, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
     }
 }
