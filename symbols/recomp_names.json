@@ -1,0 +1,34 @@
+{
+  "_comment": [
+    "Names given to N64Recomp in place of the real ones from functions.json (applied by tools/gen_syms.py).",
+    "game_*: libultra functions N64Recomp would replace with the runtime's versions, but we want the game's",
+    "own copy recompiled (Controller Pak filesystem: the runtime has no Controller Pak emulation).",
+    "cspeed_*: functions implemented in src/game (listed as ignored in cspeed.us.toml); these are the only",
+    "places the Controller Pak code touches the Serial Interface."
+  ],
+  "osPfsChecker": "game_osPfsChecker",
+  "corrupted_init": "game_corrupted_init",
+  "corrupted": "game_corrupted",
+  "osPfsAllocateFile": "game_osPfsAllocateFile",
+  "osPfsDeleteFile": "game_osPfsDeleteFile",
+  "osPfsReadWriteFile": "game_osPfsReadWriteFile",
+  "osPfsFileState": "game_osPfsFileState",
+  "osPfsFindFile": "game_osPfsFindFile",
+  "osPfsFreeBlocks": "game_osPfsFreeBlocks",
+  "osPfsInitPak": "game_osPfsInitPak",
+  "osPfsRepairId": "game_osPfsRepairId",
+  "__osRepairPackId": "game___osRepairPackId",
+  "__osCheckPackId": "game___osCheckPackId",
+  "__osGetId": "game___osGetId",
+  "__osCheckId": "game___osCheckId",
+  "__osPfsRWInode": "game___osPfsRWInode",
+  "__osPfsSelectBank": "game___osPfsSelectBank",
+  "__osSiGetAccess": "game___osSiGetAccess",
+  "__osSiRelAccess": "game___osSiRelAccess",
+  "__osSiCreateAccessQueue": "game___osSiCreateAccessQueue",
+
+  "__osContRamRead": "cspeed_osContRamRead",
+  "__osContRamWrite": "cspeed_osContRamWrite",
+  "__osPfsGetStatus": "cspeed_osPfsGetStatus",
+  "osPfsIsPlug": "cspeed_osPfsIsPlug"
+}

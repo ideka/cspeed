@@ -15,12 +15,10 @@ functions_per_output_file = 50
 stubs = []
 # Dead code using ll/sc, sync, or shared asm tails is classified as data by tools/funcbounds.py
 # and never reaches the symbol file, so nothing needs ignoring yet.
-# Controller Pak internals only reached from osPfs* (which the runtime reimplements); they call
-# __osContRamRead/__osContRamWrite/__osPfsSelectBank, which N64Recomp ignores, so skip them too.
-# cspeed_osPfsInitPak is libultra's osPfsInitPak, renamed so src/game/recomp_api.cpp can answer the
-# game's Rumble Pak probe (the runtime's version always reports "no pak").
-ignored = ["__osPfsClearPage", "__osPfsSumPage", "__osPfsDeclearPage", "__osPfsReleasePages",
-           "cspeed_osPfsInitPak"]
+# The Controller Pak is emulated below libultra: the game's own osPfs* filesystem code is recompiled
+# (renamed game_* via symbols/recomp_names.json) and only these Serial Interface entry points are
+# implemented natively, in src/game/controller_pak.cpp.
+ignored = ["cspeed_osContRamRead", "cspeed_osContRamWrite", "cspeed_osPfsGetStatus", "cspeed_osPfsIsPlug"]
 
 # The idle thread (0x80000518) ends in `j .` at 0x800005C0. Spinning forever would starve the
 # runtime's cooperative scheduler ("No threads left to run!"), so pause the thread instead.
@@ -46,3 +44,10 @@ func = "func_8008C444"
 text = "yield_self(rdram);"
 before_vram = 0x8008C498
 
+
+# Emulated paks are a Controller Pak and a Rumble Pak at once: after the game's pak probe handles a
+# channel, also enable rumble for it (see src/game/controller_pak.cpp).
+[[patches.hook]]
+func = "func_8005D1C8"
+text = "{ void cspeed_after_pak_probe(uint8_t*, recomp_context*); cspeed_after_pak_probe(rdram, ctx); }"
+before_vram = 0x8005DAF0

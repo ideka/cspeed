@@ -615,6 +615,9 @@ void set_default_controller_mappings() {
     set(GameInput::C_DOWN,  { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTY, true) });
     set(GameInput::C_LEFT,  { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTX, false) });
     set(GameInput::C_RIGHT, { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTX, true) });
+    // Recomp menus follow the same layout: accept on A (right), back on B (bottom).
+    set(GameInput::ACCEPT_MENU, { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
+    set(GameInput::BACK_MENU,   { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
 }
 
 // Debug aid: with CSPEED_AUTOSTART=1 the launcher starts the game on its first frame (if the ROM is

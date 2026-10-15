@@ -206,17 +206,3 @@ extern "C" void osPiRawReadIo_recomp(uint8_t* rdram, recomp_context* ctx) {
     }
     ctx->r2 = 0;
 }
-
-ultramodern::input::connected_device_info_t get_connected_device_info(int controller_num);
-
-// Replaces the game's osPfsInitPak (0x8000C220, ignored in cspeed.us.toml). The game probes each
-// controller's pak with osPfsInitPak and only tries osMotorInit when that fails with
-// PFS_ERR_ID_FATAL/PFS_ERR_DEVICE, which is what a real Rumble Pak answers. The runtime's stub
-// always reports PFS_ERR_NOPACK, so rumble was never detected. No Controller Pak is emulated.
-extern "C" void cspeed_osPfsInitPak(uint8_t* rdram, recomp_context* ctx) {
-    constexpr int32_t PFS_ERR_NOPACK = 1;
-    constexpr int32_t PFS_ERR_DEVICE = 11;
-    int channel = (int)ctx->r6;
-    ultramodern::input::connected_device_info_t info = get_connected_device_info(channel);
-    ctx->r2 = info.connected_pak == ultramodern::input::Pak::RumblePak ? PFS_ERR_DEVICE : PFS_ERR_NOPACK;
-}

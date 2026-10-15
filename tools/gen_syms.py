@@ -4,7 +4,7 @@
 
 Sections: one per code segment ('boot', 'main'), sized to the detected end of code.
 Functions: extents from funcbounds.compute(); names from symbols/functions.json,
-otherwise func_XXXXXXXX.
+otherwise func_XXXXXXXX. symbols/recomp_names.json renames some of them for the recompiler only.
 """
 import json
 import os
@@ -17,6 +17,7 @@ from n64feat import load_all      # noqa: E402
 import funcbounds                 # noqa: E402
 
 NAMES = os.path.join(ROOT, "symbols", "functions.json")
+RECOMP_NAMES = os.path.join(ROOT, "symbols", "recomp_names.json")
 OUT = os.path.join(ROOT, "cspeed.us.syms.toml")
 
 
@@ -24,6 +25,10 @@ def main():
     rom, segs, A = load_all()
     funcs = funcbounds.compute(A)
     names = {int(k, 16): v for k, v in json.load(open(NAMES, encoding="utf-8")).items() if not k.startswith("_")}
+    recomp_names = {k: v for k, v in json.load(open(RECOMP_NAMES, encoding="utf-8")).items() if k != "_comment"}
+    missing = set(recomp_names) - set(names.values())
+    if missing:
+        sys.exit("recomp_names.json renames unknown functions: %s" % ", ".join(sorted(missing)))
     # Binary Ninja sometimes starts a function on the nop padding before it; our walker
     # starts at the first real instruction. Move such names forward over the padding.
     starts = {f[0] for f in funcs}
@@ -49,6 +54,7 @@ def main():
                   "functions = ["]
         for s, e, merged in fs:
             nm = names.get(s, "func_%08X" % s)
+            nm = recomp_names.get(nm, nm)
             lines.append('    { name = "%s", vram = 0x%08X, size = 0x%X },' % (nm, s, e - s))
         lines += ["]", ""]
         total += len(fs)

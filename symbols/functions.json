@@ -111,7 +111,7 @@
   "0x8000bd40": "osPfsFileState",
   "0x8000bf80": "osPfsFindFile",
   "0x8000c110": "osPfsFreeBlocks",
-  "0x8000c220": "cspeed_osPfsInitPak",
+  "0x8000c220": "osPfsInitPak",
   "0x8000c3f0": "osPfsRepairId",
   "0x8000c5b0": "__osPfsGetStatus",
   "0x8000c690": "__osPfsRequestOneChannel",

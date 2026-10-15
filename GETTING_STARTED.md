@@ -145,6 +145,11 @@ curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,jso
 - Graphics task (set up at `0x80055168`): rspboot `0x80015330`, F3DEX.NoN fifo 2.04 text `0x80016220`, data `0x8001B400`. Handled by RT64.
 - Audio task (set up at `0x800577C0`): aspMain text `0x80015400` (ROM `0x16000`, `0xE20` bytes), data `0x8001B140`; dispatch table at data+0x10 (16 commands). See `aspMain.us.toml`.
 - Saves: Controller Pak (osPfs*) only; no EEPROM/SRAM/Flash commands exist in the ROM, so the game entry uses `SaveType::None`.
+  The runtime has no Controller Pak support, so `src/game/controller_pak.cpp` emulates it below libultra: the game's own
+  osPfs* code is recompiled (renamed `game_*` through `symbols/recomp_names.json`) and only `__osContRamRead/Write`,
+  `__osPfsGetStatus` and `osPfsIsPlug` are native. Paks are stored as `.mpk` images next to the runtime save file.
+- Every emulated pak is also a Rumble Pak: a hook after the game's pak probe (`func_8005D1C8`) sets the rumble bitmask
+  (`0x800E1B81`) and the motor OSPfs (`0x800E1D38 + n*0x68`), so no Controller Pak/Rumble Pak swapping is needed.
 
 ## Status and known issues (2026-10-15)
 - The whole pipeline runs: symbols -> N64Recomp -> RSPRecomp -> CMake build of `CaliforniaSpeedRecompiled.exe`
@@ -152,10 +157,10 @@ curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,jso
 - **No MIPS compiler on this machine.** The LLVM 21 in `%LLVM_DIR%` was built without the Mips
   target, so `patches/` cannot be compiled yet. `patches/Makefile` detects this and writes an empty
   `patches.elf` (via `tools/make_empty_patches_elf.py`), which keeps the build working with zero patches.
-  To write real patches, install a clang with MIPS support (the official LLVM release via
-  `winget install LLVM.LLVM`, or the VS 2022 "C++ Clang Compiler for Windows" component) and rebuild.
-- `osMotorStart`/`osMotorStop` (0x8000C7A0 / 0x8000C960) are identical code using different buffers; the
-  names may be swapped. Verify with rumble in game.
+  Neither the winget LLVM nor VS's clang has it; see `TODO.md` for the plan (zig's bundled clang).
+- `osMotorStop`/`osMotorStart` are 0x8000C7A0 / 0x8000C960 (`osMotorInit` fills the buffer the latter sends with 1s).
+- `osViSetMode`/`osViSwapBuffer` are 0x80009B80 / 0x80009D40; having them swapped meant nothing was ever displayed.
+- Open items and ideas live in `TODO.md`.
 - `__osExceptionPreamble` (0x8000E170) is split by two bogus seeds; harmless (N64Recomp ignores it).
 - Binary Ninja's function list contains ~1859 seeds; after cleanup 1409 functions remain
   (1226 reachable from the entry point). Unreachable-but-kept functions are dead code or pointer-called.
