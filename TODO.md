@@ -25,6 +25,19 @@ far. Newest findings go into the item they belong to.
 - Both need game patches: widen the projection and the view/scissor for the 3D scene, and tag the
   HUD's 2D drawing with extended GBI viewport/alignment commands so RT64 knows what to move.
 
+## Gameplay
+
+### More precise steering
+- Steering feels coarse with a modern analog stick. Things to look at: the runtime's stick conversion
+  (`convert_to_n64_range` in ultramodern `input.cpp` maps to the N64's octagonal +-82 range), any
+  deadzone/response curve the game applies on top, and whether the game quantizes the stick value
+  before using it. A configurable response curve or deadzone in the recomp could help.
+
+### Load the first Controller Pak profile on startup
+- Right now the player has to pick LOAD on the 1 Player screen every session. Automatically load the
+  first profile on the pak (player slot `0x8016D172` is -1 when none is loaded) once the startup pak
+  probe has found it. Needs the game's load-profile routine identified (called from the LOAD menu).
+
 ## UI
 
 ### Controls menu lag (could not reproduce)
@@ -34,10 +47,12 @@ far. Newest findings go into the item they belong to.
 ## Infrastructure
 
 ### MIPS patch toolchain
-- `patches/` needs a clang + lld with the Mips target. Neither the installed LLVM 21 nor VS's clang
-  has it, Cygwin has no MIPS cross compiler, and WSL is not installed.
-- Plan: `pip install ziglang` (bundles clang and lld with all targets) and point `patches/Makefile`
-  at `python -m ziglang cc` / `python -m ziglang ld.lld`.
+- A mips-elf GCC 16.2 + binutils 2.47 toolchain is installed in Cygwin at
+  `%MIPS_TOOLCHAIN_BIN%` (needs `%MIPS_TOOLCHAIN_DLL_DIR%` on PATH for the Cygwin DLLs).
+  Verified: `mips-elf-gcc -march=vr4300 -mabi=32 -mfix4300 -G0 -mno-abicalls -fno-pic -O2` builds
+  correct VR4300 code.
+- Still to do: point `patches/Makefile` at it (it currently expects clang/ld.lld and falls back to an
+  empty `patches.elf`), then build a first real patch. This unblocks the graphics items above.
 
 ### Submodule patches
 - `tools/runtime_patches/` holds fixes applied to submodules by hand (`git -C lib/<module> apply ...`):

@@ -157,7 +157,8 @@ curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,jso
 - **No MIPS compiler on this machine.** The LLVM 21 in `%LLVM_DIR%` was built without the Mips
   target, so `patches/` cannot be compiled yet. `patches/Makefile` detects this and writes an empty
   `patches.elf` (via `tools/make_empty_patches_elf.py`), which keeps the build working with zero patches.
-  Neither the winget LLVM nor VS's clang has it; see `TODO.md` for the plan (zig's bundled clang).
+  Neither the winget LLVM nor VS's clang has it. A mips-elf GCC toolchain is installed in Cygwin
+  (`%MIPS_TOOLCHAIN_BIN%`); wiring it into `patches/Makefile` is tracked in `TODO.md`.
 - `osMotorStop`/`osMotorStart` are 0x8000C7A0 / 0x8000C960 (`osMotorInit` fills the buffer the latter sends with 1s).
 - `osViSetMode`/`osViSwapBuffer` are 0x80009B80 / 0x80009D40; having them swapped meant nothing was ever displayed.
 - Open items and ideas live in `TODO.md`.
