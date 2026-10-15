@@ -244,6 +244,12 @@ if (WIN32)
         ${sdl2_SOURCE_DIR}/lib/x64
     )
 
+    # The UI resolves assets relative to the executable: keep a copy next to it.
+    add_custom_command(TARGET CaliforniaSpeedRecompiled POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_directory
+            "${CMAKE_SOURCE_DIR}/assets"
+            "$<TARGET_FILE_DIR:CaliforniaSpeedRecompiled>/assets")
+
     # Copy SDL2 and dxc DLLs to output folder as post build step
     add_custom_command(TARGET CaliforniaSpeedRecompiled POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
