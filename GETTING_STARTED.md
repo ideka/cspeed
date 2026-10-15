@@ -51,7 +51,7 @@ point. It does **not** name libultra functions; that is the next job (signature 
 
 ## Repos cloned into this folder
 - `N64Recomp/` — the recompiler itself (`N64Recomp.exe`) plus `RSPRecomp.exe` for RSP microcode.
-- `N64RecompGameTemplate/` — SrBananaMan's template for a new game recomp. Submodules:
+- (moved to the repo root, see Project layout below) SrBananaMan's template for a new game recomp. Submodules:
   `lib/N64ModernRuntime`, `lib/rt64`, `lib/RecompFrontend`. Run
   `python configure_game.py "California Speed" --preview` then without `--preview`,
   and grep for `User Task:` to see what must be filled in.
@@ -104,6 +104,47 @@ Everything above is mechanical except step 1. Without a decomp you need:
 
 Realistic ordering: get `N64Recomp` to run cleanly over the main segment with auto-detected
 functions first, then chase runtime crashes.
+
+## Project layout (after the 2026-10-15 restructure)
+The repo root is now the recomp project itself (SrBananaMan's N64RecompGameTemplate, configured for this game):
+
+| Path | What |
+|---|---|
+| `src/`, `include/`, `patches/`, `assets/`, `icons/`, `CMakeLists.txt` | the game project (from the template) |
+| `lib/N64ModernRuntime`, `lib/rt64`, `lib/RecompFrontend` | runtime, renderer, UI (submodules pinned to the template's commits) |
+| `N64Recomp/` | the recompiler (submodule); `build_n64recomp.bat` builds it |
+| `cspeed.us.toml` | N64Recomp config (symbol-file mode) |
+| `cspeed.us.syms.toml`, `cspeed.us.datasyms.toml` | generated symbol files (do not edit; run `tools/gen_syms.py`) |
+| `aspMain.us.toml` | RSPRecomp config for the audio microcode, output `rsp/aspMain.cpp` |
+| `RecompiledFuncs/` | N64Recomp output (generated, ignored by git) |
+| `symbols/functions.json` | hand-curated function names (source of truth) |
+| `tools/` | analysis and generation scripts (see below) |
+| `build.bat` | configure/build the game executable (VS env + LLVM clang-cl + Ninja) |
+
+## The pipeline, as it exists now
+```
+python tools/gen_syms.py          # ROM + Binary Ninja seeds + names -> cspeed.us.syms.toml / datasyms
+python tools/check_syms.py        # validate like N64Recomp would (branches, jal targets, unsupported insns)
+N64Recomp/build/N64Recomp.exe cspeed.us.toml      # -> RecompiledFuncs/*.c   (1522 functions, exit 0)
+N64Recomp/build/RSPRecomp.exe aspMain.us.toml     # -> rsp/aspMain.cpp
+build.bat                          # cmake configure + build -> build/CaliforniaSpeedRecompiled.exe
+```
+`tools/funcbounds.py` is the heart of it: a MIPS control-flow walker that turns Binary Ninja's
+function starts (dumped to `scratch/bn_funcs.json` via the MCP HTTP API) into exact function
+extents, resolves jump tables, merges fragments BN split off, and classifies data-misread-as-code
+as junk. Its docstring explains the heuristics. `tools/n64feat.py` extracts per-function features
+(used for libultra identification). `tools/bn_apply_names.py` pushes `symbols/functions.json` into
+the open Binary Ninja database (HTTP API on port 9009; renames are POST).
+
+Refreshing BN seeds after re-analysis in Binary Ninja:
+```
+curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,json; json.dump(json.load(sys.stdin)['functions'], open('scratch/bn_funcs.json','w'))"
+```
+
+## Known facts about the game's RSP tasks and saves
+- Graphics task (set up at `0x80055168`): rspboot `0x80015330`, F3DEX.NoN fifo 2.04 text `0x80016220`, data `0x8001B400`. Handled by RT64.
+- Audio task (set up at `0x800577C0`): aspMain text `0x80015400` (ROM `0x16000`, `0xE20` bytes), data `0x8001B140`; dispatch table at data+0x10 (16 commands). See `aspMain.us.toml`.
+- Saves: Controller Pak (osPfs*) only; no EEPROM/SRAM/Flash commands exist in the ROM, so the game entry uses `SaveType::None`.
 
 ## References
 - https://github.com/N64Recomp/N64Recomp
