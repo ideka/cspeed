@@ -22,9 +22,14 @@ far. Newest findings go into the item they belong to.
 
 ### Widescreen: remaining gaps
 - Races widen and the 2D HUD is anchored to the screen edges (`src/game/graphics.cpp`). The
-  speedometer **needle** is a 3D object placed in front of the camera, so it stays at its 4:3
-  position while the dial moves to the right edge. It needs its draw bracketed with an extended
-  viewport origin (gEXSetViewportAlign/gEXViewport, RIGHT) once the drawing code is found.
+  speedometer **needle** is a red quad (4 CPU-computed vertices, prim colour `C80000FF`) drawn with
+  the race camera right after the scene, so it stays at its 4:3 position while the dial moves to the
+  right edge. Re-applying the camera viewport with a right origin around it works visually
+  (`anchor_needle`, disabled by `ANCHOR_NEEDLE`), but the extra mid-frame viewport changes add RT64
+  projections and break frame interpolation (other racers and wheels blink). Options: move the
+  needle's vertices instead (needs its coordinate space: probably world space with an identity
+  model matrix and a combined projection*lookat), or find a way to tag it that RT64 interpolation
+  tolerates (e.g. a matrix group for that projection).
 - Menus stay 4:3 on purpose (4:3 background art; 3D objects slide in from outside the 4:3 area).
 - Objects may pop in/out at the widened screen edges if the game culls against a 4:3 frustum; not
   seen yet.

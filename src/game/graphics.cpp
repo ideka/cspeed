@@ -222,6 +222,11 @@ extern "C" void cspeed_hud_sprite_align(uint8_t* rdram, recomp_context* ctx) {
 //   like the HUD) and restores the normal viewport afterwards.
 namespace {
 
+// Disabled: re-applying the viewport for the needle adds projections in the middle of the frame,
+// which breaks RT64's frame interpolation (other racers and wheels blink at high framerates).
+// See TODO.md.
+constexpr bool ANCHOR_NEEDLE = false;
+
 constexpr uint32_t G_EX_SETVIEWPORTALIGN_V1 = 0x000007;
 constexpr uint32_t NEEDLE_COLOR = 0xC80000FF;
 constexpr uint32_t NEEDLE_DL_BASE = PROLOGUE_BASE + 0x1000;   // one list per prologue slot
@@ -317,5 +322,7 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
         return;
     }
     remove_side_borders(rdram, dl);
-    anchor_needle(rdram, dl, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
+    if (ANCHOR_NEEDLE) {
+        anchor_needle(rdram, dl, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
+    }
 }
