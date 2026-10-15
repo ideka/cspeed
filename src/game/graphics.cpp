@@ -393,20 +393,16 @@ void anchor_needle(uint8_t* rdram, uint32_t vtx_addr, uint32_t tri_addr, uint32_
 } // namespace
 
 // California Speed draws a black border around the picture (12 px left and right, 10 px top and
-// bottom) that a CRT's overscan hid. Races, whatever the aspect ratio, remove it and fill the whole
-// screen (remove_borders and the camera/HUD scissors), keeping the game's layout: e.g. the pause
-// panel still ends 10 px above the bottom edge, with the race visible below it. Every other screen
-// (menus, results) draws its content inside the border with nothing underneath, so there RT64 is
-// told to zoom the picture by 1/24 on each side to keep the border out of view.
+// bottom) that a CRT's overscan hid. RT64 is told to zoom every screen by 1/24 on each side to keep
+// it out of view, like a TV would; with Expand, RT64 renders the picture wide enough that the sides
+// lose the same amount as on a 4:3 screen, so the HUD keeps its distance to the edges. Races also
+// remove the border (remove_borders and the camera/HUD scissors) so the widened picture has no
+// black strips in it.
 constexpr float OVERSCAN_CROP = 1.0f / 24.0f;
 
 extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
+    RT64::VI::setOverscanCrop(OVERSCAN_CROP);
     needle_drawn_last_frame = false;
-    struct CropForFrame {
-        ~CropForFrame() {
-            RT64::VI::setOverscanCrop(needle_drawn_last_frame ? 0.0f : OVERSCAN_CROP);
-        }
-    } crop_for_frame;
     if (MEM_W(0, GAME_MODE) != GAME_MODE_RACE) {
         return;
     }
