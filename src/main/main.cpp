@@ -598,6 +598,23 @@ void on_launcher_init(recompui::LauncherMenu *menu) {
     cspeed::launcher_animation_setup(menu);
 }
 
+// Debug aid: with CSPEED_AUTOSTART=1 the launcher starts the game on its first frame (if the ROM is
+// already set up), so test runs need no clicking.
+void on_launcher_update(recompui::LauncherMenu *menu) {
+    static bool autostart_done = false;
+    if (!autostart_done) {
+        autostart_done = true;
+        recomp::GameEntry& game = supported_games[0];
+        if (getenv("CSPEED_AUTOSTART") && recomp::is_rom_valid(game.game_id)) {
+            recompui::update_game_mod_id(game.mod_game_id);
+            recomp::start_game(game.game_id, {});
+            recompui::hide_all_contexts();
+            return;
+        }
+    }
+    cspeed::launcher_animation_update(menu);
+}
+
 #define REGISTER_FUNC(name) recomp::overlays::register_base_export(#name, name)
 
 int main(int argc, char** argv) {
@@ -724,7 +741,7 @@ int main(int argc, char** argv) {
     cspeed::init_config();
 
     recompui::register_launcher_init_callback(on_launcher_init);
-    recompui::register_launcher_update_callback(cspeed::launcher_animation_update);
+    recompui::register_launcher_update_callback(on_launcher_update);
 
     recomp::rsp::callbacks_t rsp_callbacks{
         .get_rsp_microcode = get_rsp_microcode,

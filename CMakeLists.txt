@@ -248,7 +248,10 @@ if (WIN32)
     add_custom_command(TARGET CaliforniaSpeedRecompiled POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory
             "${CMAKE_SOURCE_DIR}/assets"
-            "$<TARGET_FILE_DIR:CaliforniaSpeedRecompiled>/assets")
+            "$<TARGET_FILE_DIR:CaliforniaSpeedRecompiled>/assets"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${CMAKE_SOURCE_DIR}/recompcontrollerdb.txt"
+            "$<TARGET_FILE_DIR:CaliforniaSpeedRecompiled>")
 
     # Copy SDL2 and dxc DLLs to output folder as post build step
     add_custom_command(TARGET CaliforniaSpeedRecompiled POST_BUILD
