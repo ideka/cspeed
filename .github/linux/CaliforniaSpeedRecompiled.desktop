@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=California Speed: Recompiled
+Type=Application
+Terminal=false
+Exec=CaliforniaSpeedRecompiled
+Categories=Game;
+Comment=Static recompilation of California Speed for PC.
+

@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=California Speed: Recompiled
+Exec=/app/bin/CaliforniaSpeedRecompiled
+Type=Application
+Icon=io.github.cspeed.CaliforniaSpeedRecompiled
+Categories=Game;
+Comment=Static recompilation of California Speed for PC.
+MimeType=x-scheme-handler/cspeed

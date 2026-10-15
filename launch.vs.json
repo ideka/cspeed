@@ -1,0 +1,14 @@
+{
+  "version": "0.0.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "default",
+      "project": "CMakeLists.txt",
+      "projectTarget": "CaliforniaSpeedRecompiled.exe",
+      "name": "CaliforniaSpeedRecompiled.exe",
+      "currentDir": "${workspaceRoot}",
+      "args": ["--show-console"]
+    }
+  ]
+}

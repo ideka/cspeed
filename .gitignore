@@ -1,33 +1,81 @@
-# ROMs and anything derived from them must never be committed
-*.z64
-*.n64
-*.v64
-*.rom
-*.bin
 
 # Binary Ninja databases (large, binary; keep local)
+# Build output
+# Build results
+# Controller mappings file
+# Editors / OS
+# Flatpak build process
+# Input elf and rom files
+# Linux build output
+# Nix build output
+# Output C files
+# ROMs and anything derived from them must never be committed
+# Recompiler Linux binary
+# Runtime files
+# Scratch disassembly / experiments
+# User-specific files
+# VSCode file settings
+# Visual Studio 2015/2017 cache/options directory
+# Windows build output
+# clangd cache
+*.bin
 *.bndb
 *.bndb.lock
-
-# Scratch disassembly / experiments
-scratch/
-
-# Build output
-build/
-build-cmake/
-out/
-RecompiledFuncs/
+*.dll
+*.elf
 *.exe
+*.ilk
+*.lib
+*.n64
+*.o
 *.obj
 *.pdb
-*.ilk
-
-# Editors / OS
+*.pyc
+*.rom
+*.rsuser
+*.sln.docstates
+*.suo
+*.user
+*.userosscache
+*.v64
+*.z64
+.DS_Store
+.idea/
 .vs/
 .vscode/
-.idea/
-Thumbs.db
+.vscode/c_cpp_properties.json
+.vscode/launch.json
+.vscode/settings.json
+/.cache/
+/result/
 Desktop.ini
-.DS_Store
+N64Recomp
+RSPRecomp
+RecompiledFuncs/
+RecompiledPatches/
+Thumbs.db
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Bb]in/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Ll]og/
+[Ll]ogs/
+[Oo]bj/
+[Rr]elease/
+[Rr]eleases/
+[Ww][Ii][Nn]32/
 __pycache__/
-*.pyc
+bld/
+build-cmake/
+build/
+gamecontrollerdb.txt
+imgui.ini
+node_modules/
+out/
+repo/
+rt64.log
+scratch/
+vcpkg_installed/
+x64/
+x86/
