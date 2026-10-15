@@ -1,5 +1,6 @@
 // Graphics extensions: RT64 extended GBI setup and widescreen support.
 
+#include <algorithm>
 #include <array>
 
 #include "recomp.h"
@@ -125,10 +126,12 @@ constexpr gpr HUD_DL_INDEX = (gpr)(int32_t)0x800F8818;
 constexpr uint32_t HUD_DL_BASE = 0x80142A50;
 constexpr uint32_t HUD_DL_SIZE = 0x3E80;
 constexpr uint32_t HUD_DL_RESERVE = 0x400;   // leave room for the game's own remaining commands
+constexpr gpr HUD_CLIP_LEFT = (gpr)(int32_t)0x801426D0;
+constexpr gpr HUD_CLIP_RIGHT = (gpr)(int32_t)0x80134380;
 constexpr int32_t SCREEN_WIDTH = 320;
 constexpr int32_t SCREEN_HEIGHT = 240;
 
-uint32_t last_rect_origin = 0xFFFFFFFF;
+uint64_t last_rect_align = ~0ull;
 
 bool hud_alignment_active(uint8_t* rdram) {
     return expand_enabled() && in_race(rdram);
@@ -153,7 +156,7 @@ void emit_hud_command(uint8_t* rdram, uint32_t w0, uint32_t w1, uint32_t w2, uin
 
 // Hook at the end of func_8005A0D8 (begin the 2D list).
 extern "C" void cspeed_hud_begin(uint8_t* rdram, recomp_context* ctx) {
-    last_rect_origin = 0xFFFFFFFF;
+    last_rect_align = ~0ull;
     if (!hud_alignment_active(rdram)) {
         return;
     }
@@ -166,29 +169,78 @@ extern "C" void cspeed_hud_begin(uint8_t* rdram, recomp_context* ctx) {
 }
 
 // Hook at the entry of func_8005C718 (draw sprite) and func_8005CCC4 (fill rectangle); both take
-// $a0..$a3 = ulx, uly, lrx, lry in screen pixels.
+// $a0..$a3 = ulx, uly, lrx, lry in screen pixels. Rectangles that span (nearly) the whole screen
+// width, like the pause screen's darkening, are stretched from edge to edge instead.
 extern "C" void cspeed_hud_sprite_align(uint8_t* rdram, recomp_context* ctx) {
     if (!hud_alignment_active(rdram)) {
         return;
     }
-    int32_t center_x = ((int32_t)ctx->r4 + (int32_t)ctx->r6) / 2;
-    uint32_t origin = G_EX_ORIGIN_NONE;
-    int32_t x_offset = 0;
-    if (center_x < SCREEN_WIDTH * 2 / 5) {
-        origin = G_EX_ORIGIN_LEFT;
+    // The drawers clip the rectangle to the 2D clip region after this hook runs; do the same here so
+    // the offsets match what is actually drawn.
+    int32_t ulx = std::max((int32_t)ctx->r4, (int32_t)MEM_W(0, HUD_CLIP_LEFT));
+    int32_t lrx = std::min((int32_t)ctx->r6, (int32_t)MEM_W(0, HUD_CLIP_RIGHT));
+    int32_t center_x = (ulx + lrx) / 2;
+    uint32_t lorigin = G_EX_ORIGIN_NONE;
+    uint32_t rorigin = G_EX_ORIGIN_NONE;
+    int32_t ul_offset = 0;
+    int32_t lr_offset = 0;
+    if (ulx <= 16 && lrx >= SCREEN_WIDTH - 16) {
+        // Full width: move the left edge to the left screen edge and the right edge to the right one
+        // (the right origin adds the screen width; offsets are 10.2 fixed point).
+        lorigin = G_EX_ORIGIN_LEFT;
+        rorigin = G_EX_ORIGIN_RIGHT;
+        ul_offset = -ulx * 4;
+        lr_offset = -lrx * 4;
+    } else if (center_x < SCREEN_WIDTH * 2 / 5) {
+        lorigin = rorigin = G_EX_ORIGIN_LEFT;
     } else if (center_x > SCREEN_WIDTH * 3 / 5) {
-        origin = G_EX_ORIGIN_RIGHT;
-        x_offset = -SCREEN_WIDTH * 4;   // the right origin adds the screen width (10.2 fixed point)
+        lorigin = rorigin = G_EX_ORIGIN_RIGHT;
+        ul_offset = lr_offset = -SCREEN_WIDTH * 4;
     }
-    if (origin == last_rect_origin) {
+    // gEXSetRectAlign(lorigin, rorigin, ul_offset, 0, lr_offset, 0)
+    uint32_t w1 = lorigin | (rorigin << 12);
+    uint32_t w2 = ((uint32_t)ul_offset & 0xFFFF) << 16;
+    uint32_t w3 = ((uint32_t)lr_offset & 0xFFFF) << 16;
+    uint64_t key = ((uint64_t)w1 << 40) ^ ((uint64_t)w2 << 8) ^ w3;
+    if (key == last_rect_align) {
         return;
     }
-    last_rect_origin = origin;
-    uint32_t x = (uint32_t)x_offset & 0xFFFF;
-    // gEXSetRectAlign(origin, origin, x_offset, 0, x_offset, 0)
-    emit_hud_command(rdram,
-        (RT64_EXTENDED_OPCODE << 24) | G_EX_SETRECTALIGN_V1,
-        origin | (origin << 12),
-        x << 16,
-        x << 16);
+    last_rect_align = key;
+    emit_hud_command(rdram, (RT64_EXTENDED_OPCODE << 24) | G_EX_SETRECTALIGN_V1, w1, w2, w3);
+}
+
+// Hook in the graphics task setup (func_80055168) right before the finished task is sent to the
+// scheduler ($s0 = OSScTask). In widescreen races, the frame's display list starts by drawing black
+// 12-pixel borders on all sides of the 4:3 picture; the left and right ones are narrow fill
+// rectangles that RT64 keeps at the old 4:3 edges, where they show as two thin bars wherever no 3D
+// geometry covers them (the sky). Turn them into no-ops.
+extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
+    if (!expand_enabled() || !in_race(rdram)) {
+        return;
+    }
+    // The task points at our prologue; the game's display list is the target of its branch.
+    gpr prologue = (gpr)(int32_t)MEM_W(0x58, ctx->r16);
+    uint32_t dl = (uint32_t)MEM_W(0xC, prologue);
+    if ((dl & 0xFF000000) != 0x80000000) {
+        return;
+    }
+    // The borders come within the first few dozen commands, before any geometry.
+    for (int i = 0; i < 64; i++, dl += 8) {
+        gpr cmd = (gpr)(int32_t)dl;
+        uint32_t w0 = (uint32_t)MEM_W(0, cmd);
+        uint32_t w1 = (uint32_t)MEM_W(4, cmd);
+        uint32_t op = w0 >> 24;
+        if (op == 0xDA || op == 0x01 || op == 0xDF) {
+            break;                      // matrices or geometry: past the frame setup
+        }
+        if (op != 0xF6) {
+            continue;
+        }
+        int32_t lrx = (w0 >> 12) & 0xFFF, lry = w0 & 0xFFF;    // 10.2 fixed point
+        int32_t ulx = (w1 >> 12) & 0xFFF, uly = w1 & 0xFFF;
+        if (lrx - ulx <= 16 * 4 && lry - uly >= 200 * 4) {
+            MEM_W(0, cmd) = 0;          // G_NOOP
+            MEM_W(4, cmd) = 0;
+        }
+    }
 }
