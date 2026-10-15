@@ -83,9 +83,10 @@ bool in_race(uint8_t* rdram) {
 // Hook in the camera setup (func_800CF0B4) right after it writes G_SETSCISSOR into the display list
 // ($t0 = display list position: scissor words at +0x10/+0x14; $s1 = camera index). When the camera's
 // viewport spans the whole screen and the scissor is centred in it, open the scissor to the full
-// screen so RT64 expands the scene. Split-screen viewports are left untouched.
+// screen: races fill the whole screen, and with the Expand aspect ratio this is also what lets RT64
+// widen the scene. Split-screen viewports are left untouched.
 extern "C" void cspeed_widescreen_camera_scissor(uint8_t* rdram, recomp_context* ctx) {
-    if (!expand_enabled() || !in_race(rdram)) {
+    if (!in_race(rdram)) {
         return;
     }
     gpr dl = ctx->r8;
@@ -190,11 +191,12 @@ extern "C" void cspeed_hud_begin(uint8_t* rdram, recomp_context* ctx) {
     last_rect_align = ~0ull;
     hud_scissor = HudScissor::Unset;
     hud_list_start = 0;
-    if (!hud_alignment_active(rdram)) {
+    if (!in_race(rdram)) {
         return;
     }
+    // The game's own HUD scissor stops at the old border; races fill the whole screen.
     hud_list_start = (uint32_t)MEM_W(0, HUD_DL_HEAD);
-    set_hud_scissor(rdram, HudScissor::Wide);
+    set_hud_scissor(rdram, expand_enabled() ? HudScissor::Wide : HudScissor::Plain);
 }
 
 // Hook at the entry of func_8005C718 (draw sprite) and func_8005CCC4 (fill rectangle); both take
@@ -391,16 +393,18 @@ void anchor_needle(uint8_t* rdram, uint32_t vtx_addr, uint32_t tri_addr, uint32_
 } // namespace
 
 // California Speed draws a black border around the picture (12 px left and right, 10 px top and
-// bottom) that a CRT's overscan hid. RT64 is told to zoom the picture by 1/24 on each side so it is
-// out of view, except in widescreen races: those remove the border instead (remove_borders), and the
-// zoom would push the HUD anchored at the window edges off screen.
+// bottom) that a CRT's overscan hid. Races, whatever the aspect ratio, remove it and fill the whole
+// screen (remove_borders and the camera/HUD scissors), keeping the game's layout: e.g. the pause
+// panel still ends 10 px above the bottom edge, with the race visible below it. Every other screen
+// (menus, results) draws its content inside the border with nothing underneath, so there RT64 is
+// told to zoom the picture by 1/24 on each side to keep the border out of view.
 constexpr float OVERSCAN_CROP = 1.0f / 24.0f;
 
 extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
     needle_drawn_last_frame = false;
     struct CropForFrame {
         ~CropForFrame() {
-            RT64::VI::setOverscanCrop((needle_drawn_last_frame && expand_enabled()) ? 0.0f : OVERSCAN_CROP);
+            RT64::VI::setOverscanCrop(needle_drawn_last_frame ? 0.0f : OVERSCAN_CROP);
         }
     } crop_for_frame;
     if (MEM_W(0, GAME_MODE) != GAME_MODE_RACE) {
@@ -418,10 +422,12 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     uint32_t tri = 0;
     uint32_t needle = find_needle(rdram, dl, &tri);
     needle_drawn_last_frame = (needle != 0);
-    if (!needle_drawn_last_frame || !expand_enabled()) {
+    if (!needle_drawn_last_frame) {
         return;
     }
     remove_borders(rdram, dl);
     widen_full_width_fills(rdram);
-    anchor_needle(rdram, needle, tri, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
+    if (expand_enabled()) {
+        anchor_needle(rdram, needle, tri, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
+    }
 }
