@@ -67,3 +67,11 @@ before_vram = 0x800A9BAC
 func = "func_800A9B54"
 text = "ctx->r2 = 1;"
 before_vram = 0x800A9BC8
+
+
+# Widescreen: open the 3D camera's scissor to the full width when "Expand" is selected, so RT64
+# widens the scene (see src/game/widescreen.cpp).
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ void cspeed_widescreen_camera_scissor(uint8_t*, recomp_context*); cspeed_widescreen_camera_scissor(rdram, ctx); }"
+before_vram = 0x800CF338
