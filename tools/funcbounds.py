@@ -147,10 +147,44 @@ def uses_privileged(w):
     return False
 
 
+def writes_zero_reg(x):
+    """True for a non-nop instruction whose destination register is $zero."""
+    if x == 0:
+        return False
+    op = x >> 26
+    rt = (x >> 16) & 31
+    rd = (x >> 11) & 31
+    fn = x & 63
+    if op == 0:
+        # R-type ALU / shifts write rd (not jr/jalr/mult/div/syscall/break/sync/trap)
+        if fn in (8, 0x0C, 0x0D, 0x0F, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F,
+                  0x11, 0x13, 0x30, 0x31, 0x32, 0x33, 0x34, 0x36):
+            return False
+        return rd == 0
+    if op in (0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x18, 0x19,      # ALU immediates, lui, daddi(u)
+              0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x1A, 0x1B, 0x37, 0x30, 0x34):  # loads
+        return rt == 0
+    return False
+
+
+def has_control_flow(w):
+    for x in w:
+        op = x >> 26
+        if op in (1, 2, 3, 4, 5, 6, 7, 0x14, 0x15, 0x16, 0x17) or (op == 0 and (x & 63) in (8, 9)) \
+                or x == 0x42000018 or (op == 0x11 and ((x >> 21) & 31) == 8):
+            return True
+    return False
+
+
 def looks_like_data(w, named=False):
-    """Heuristic: invalid instructions, or mostly zero words (ignoring trailing padding).
+    """Heuristic: invalid instructions, or mostly zero words (ignoring trailing padding),
+    or writes to $zero, or no control flow at all.
     Unless `named` (a known libultra function), privileged instructions also mean data."""
     if not w or invalid_count(w) > 0:
+        return True
+    if any(writes_zero_reg(x) for x in w):
+        return True
+    if not has_control_flow(w):
         return True
     if not named and uses_privileged(w):
         return True
