@@ -57,6 +57,19 @@ far. Newest findings go into the item they belong to.
 - Next: run RT64 with debug checks (heap verification / ASan) to find the corruption; compare with
   upstream RT64 (24 commits newer, none touch the present queue).
 
+### Remove level of detail (LoD)
+- Distant objects and scenery switch to lower-detail models or pop in at a set distance. At modern
+  resolutions this is very visible; look into forcing the highest detail model and raising or removing
+  the draw distance cutoff. Needs the game's LoD selection and culling code identified.
+
+## Audio
+
+### Improve music quality
+- Explore whether the music can sound better than the original output: e.g. a higher output sample
+  rate, better resampling/interpolation in the audio path, or the game's own audio settings (sample
+  rate, voice count) set to higher values. Start by identifying the music player (see
+  `musicLoaderThread` / `musicLoadRequest` in `symbols/functions.json`) and the audio format it uses.
+
 ## Gameplay
 
 ### More precise steering
