@@ -11,8 +11,11 @@ with tempfile.TemporaryDirectory() as td:
     obj = os.path.join(td, "t.o")
     open(src, "w").write("int f(int a) { return a + 1; }\n")
     try:
-        r = subprocess.run([cc, "-target", "mips", "-mips2", "-mabi=32", "-O2", "-G0", "-mno-abicalls",
-                            "-c", src, "-o", obj], capture_output=True)
+        if "gcc" in os.path.basename(cc):
+            flags = ["-march=vr4300", "-mabi=32", "-O2", "-G0", "-mno-abicalls", "-fno-pic"]
+        else:
+            flags = ["-target", "mips", "-mips2", "-mabi=32", "-O2", "-G0", "-mno-abicalls"]
+        r = subprocess.run([cc, *flags, "-c", src, "-o", obj], capture_output=True)
         print("yes" if r.returncode == 0 and os.path.exists(obj) else "no")
     except OSError:
         print("no")

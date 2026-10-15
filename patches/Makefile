@@ -7,8 +7,14 @@ PYTHON  ?= python
 # No decompilation exists for California Speed; patches are written against our own headers.
 DECOMP_INCLUDE_DIRS :=
 
+# GCC (mips-elf-gcc) and clang take different target flags.
+ifneq ($(findstring gcc,$(notdir $(CC))),)
+CFLAGS   := -march=vr4300 -mabi=32 -mfix4300 -mno-check-zero-division -O2 -G0 -mno-abicalls -fno-pic \
+			-fomit-frame-pointer -ffreestanding -fno-builtin -Wall -Wextra
+else
 CFLAGS   := -target mips -mips2 -mabi=32 -O2 -G0 -mno-abicalls -mno-odd-spreg \
 			-fomit-frame-pointer -ffreestanding -Wall -Wextra
+endif
 CPPFLAGS := -DMIPS $(DECOMP_INCLUDE_DIRS)
 LDFLAGS  := -nostdlib -T patches.ld -Map patches.map --unresolved-symbols=ignore-all --emit-relocs
 
@@ -16,7 +22,7 @@ C_SRCS := $(wildcard *.c)
 C_OBJS := $(C_SRCS:.c=.o)
 C_DEPS := $(C_SRCS:.c=.d)
 
-# The LLVM installed on this machine may lack the Mips target. In that case produce an
+# If the compiler cannot target MIPS (e.g. an LLVM built without the Mips target), produce an
 # empty patches.elf so the rest of the build still works (no patches are applied).
 MIPS_OK := $(shell $(PYTHON) ../tools/mips_cc_check.py $(CC))
 
