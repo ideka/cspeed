@@ -10,8 +10,9 @@ far. Newest findings go into the item they belong to.
   interpolation off at the original refresh rate. These glitches were seen with interpolation (30 FPS
   game) and are gone at native 60; they may still show with a refresh rate above 60:
   - **Speedometer needle** and **tire tracks / skid marks** shaking while turning.
-  - The **Midway logo** briefly appearing off to the side before its startup animation (menus are
-    30 FPS, so interpolation still applies there at any refresh rate above 30).
+  - The **Midway logo** briefly appearing off to the side before its startup animation. The logo
+    screen (game mode 15) is now drawn without interpolation (`src/game/graphics.cpp`); not yet
+    confirmed. Other 30 FPS menus still interpolate above 30.
 - Cause: RT64's interpolation pairs the wrong matrices or vertices between frames for these objects.
   The usual fix is tagging their matrices (extended GBI `gEXMatrixGroup*`) or marking them as
   non-interpolated; `src/game/graphics.cpp` already enables the extended GBI for every frame.

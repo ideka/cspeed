@@ -857,6 +857,13 @@ int main(int argc, char** argv) {
 
     ultramodern::renderer::callbacks_t renderer_callbacks{
         .create_render_context = [](uint8_t* rdram, ultramodern::renderer::WindowHandle window_handle, bool developer_mode) {
+            // Test runs in the background (CSPEED_BACKGROUND) stay windowed whatever the saved setting;
+            // this only changes the in-memory configuration, not the saved one.
+            if (getenv("CSPEED_BACKGROUND") != nullptr) {
+                ultramodern::renderer::GraphicsConfig config = ultramodern::renderer::get_graphics_config();
+                config.wm_option = ultramodern::renderer::WindowMode::Windowed;
+                ultramodern::renderer::set_graphics_config(config);
+            }
             auto presentation_mode = ultramodern::renderer::PresentationMode::PresentEarly;
             return recompui::renderer::create_render_context(rdram, window_handle, presentation_mode, developer_mode);
         },
