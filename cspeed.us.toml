@@ -100,8 +100,9 @@ func = "func_8005A0D8"
 text = "{ void cspeed_hud_begin(uint8_t*, recomp_context*); cspeed_hud_begin(rdram, ctx); }"
 before_vram = 0x8005A21C
 
-# Widescreen races: drop the black side-border fill rectangles from the frame's display list, which
-# would otherwise show as two thin bars inside the widened view (see src/game/graphics.cpp).
+# Widescreen races, at task submission: drop the black side-border fill rectangles (two thin bars inside
+# the widened view) and anchor the speedometer needle to the right like the rest of its dial (see
+# src/game/graphics.cpp).
 [[patches.hook]]
 func = "func_80055168"
 text = "{ void cspeed_widescreen_frame_submit(uint8_t*, recomp_context*); cspeed_widescreen_frame_submit(rdram, ctx); }"

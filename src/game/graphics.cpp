@@ -210,20 +210,25 @@ extern "C" void cspeed_hud_sprite_align(uint8_t* rdram, recomp_context* ctx) {
 }
 
 // Hook in the graphics task setup (func_80055168) right before the finished task is sent to the
-// scheduler ($s0 = OSScTask). In widescreen races, the frame's display list starts by drawing black
-// 12-pixel borders on all sides of the 4:3 picture; the left and right ones are narrow fill
-// rectangles that RT64 keeps at the old 4:3 edges, where they show as two thin bars wherever no 3D
-// geometry covers them (the sky). Turn them into no-ops.
-extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
-    if (!expand_enabled() || !in_race(rdram)) {
-        return;
-    }
-    // The task points at our prologue; the game's display list is the target of its branch.
-    gpr prologue = (gpr)(int32_t)MEM_W(0x58, ctx->r16);
-    uint32_t dl = (uint32_t)MEM_W(0xC, prologue);
-    if ((dl & 0xFF000000) != 0x80000000) {
-        return;
-    }
+// scheduler ($s0 = OSScTask). Two fixes for widescreen races, applied to the finished display list:
+//
+// - The frame starts by drawing black 12-pixel borders around the 4:3 picture. The left and right
+//   ones are narrow fill rectangles that RT64 keeps at the old 4:3 edges, where they show as two thin
+//   bars wherever no 3D geometry covers them (the sky). They become no-ops.
+// - The speedometer needle is a red quad drawn with the race camera (CPU-computed vertices) right
+//   after the scene, so it stays at its 4:3 position while the dial sprites move to the right edge.
+//   Its vertex load and triangles are moved into a small display list that re-applies the camera's
+//   viewport aligned to the right edge (RT64 then draws it in a 4:3 viewport anchored to the right,
+//   like the HUD) and restores the normal viewport afterwards.
+namespace {
+
+constexpr uint32_t G_EX_SETVIEWPORTALIGN_V1 = 0x000007;
+constexpr uint32_t NEEDLE_COLOR = 0xC80000FF;
+constexpr uint32_t NEEDLE_DL_BASE = PROLOGUE_BASE + 0x1000;   // one list per prologue slot
+constexpr uint32_t NEEDLE_DL_SIZE = 128;
+constexpr gpr VIEWPORTS = (gpr)(int32_t)0x80022FB0;            // pointer to this frame's Vp array
+
+void remove_side_borders(uint8_t* rdram, uint32_t dl) {
     // The borders come within the first few dozen commands, before any geometry.
     for (int i = 0; i < 64; i++, dl += 8) {
         gpr cmd = (gpr)(int32_t)dl;
@@ -243,4 +248,74 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
             MEM_W(4, cmd) = 0;
         }
     }
+}
+
+void anchor_needle(uint8_t* rdram, uint32_t dl, uint32_t slot) {
+    uint32_t viewport = (uint32_t)MEM_W(0, VIEWPORTS);    // camera 0
+    bool red = false;
+    for (int i = 0; i < 20000; i++, dl += 8) {
+        gpr cmd = (gpr)(int32_t)dl;
+        uint32_t w0 = (uint32_t)MEM_W(0, cmd);
+        uint32_t w1 = (uint32_t)MEM_W(4, cmd);
+        uint32_t op = w0 >> 24;
+        if (op == 0xDF) {
+            return;
+        }
+        if (op == 0xFA) {
+            red = (w1 == NEEDLE_COLOR);
+            continue;
+        }
+        if (!red || op != 0x01 || w0 != 0x01004008) {
+            continue;
+        }
+        // Found "4 vertices" after the needle colour; the triangles follow within a few commands.
+        for (int j = 1; j <= 3; j++) {
+            gpr tri = (gpr)(int32_t)(dl + j * 8);
+            uint32_t t0 = (uint32_t)MEM_W(0, tri);
+            if ((t0 >> 24) != 0x06) {
+                continue;
+            }
+            gpr sub = (gpr)(int32_t)(NEEDLE_DL_BASE + slot * NEEDLE_DL_SIZE);
+            uint32_t align = (RT64_EXTENDED_OPCODE << 24) | G_EX_SETVIEWPORTALIGN_V1;
+            uint32_t right_offset = ((uint32_t)(-SCREEN_WIDTH * 4) & 0xFFFF) << 16;
+            int32_t words[] = {
+                (int32_t)align, (int32_t)G_EX_ORIGIN_RIGHT,          // gEXSetViewportAlign(RIGHT, -320*4, 0)
+                (int32_t)right_offset, 0,
+                (int32_t)0xDC080008, (int32_t)viewport,             // gSPViewport (F3DEX2 movemem)
+                (int32_t)w0, (int32_t)w1,                           // the vertex load
+                MEM_W(0, tri), MEM_W(4, tri),                       // the triangles
+                (int32_t)align, (int32_t)G_EX_ORIGIN_NONE,           // gEXSetViewportAlign(NONE, 0, 0)
+                0, 0,
+                (int32_t)0xDC080008, (int32_t)viewport,             // gSPViewport
+                (int32_t)0xDF000000, 0,                             // end of display list
+            };
+            for (size_t k = 0; k < sizeof(words) / sizeof(words[0]); k++) {
+                MEM_W((int32_t)(k * 4), sub) = words[k];
+            }
+            MEM_W(0, cmd) = (int32_t)0xDE000000;              // call it instead of the vertex load
+            MEM_W(4, cmd) = (int32_t)(NEEDLE_DL_BASE + slot * NEEDLE_DL_SIZE);
+            MEM_W(0, tri) = 0;                                // G_NOOP
+            MEM_W(4, tri) = 0;
+            return;
+        }
+    }
+}
+
+} // namespace
+
+extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
+    if (!expand_enabled() || !in_race(rdram)) {
+        return;
+    }
+    // The task points at our prologue; the game's display list is the target of its branch.
+    uint32_t prologue = (uint32_t)MEM_W(0x58, ctx->r16);
+    if (prologue < PROLOGUE_BASE || prologue >= PROLOGUE_BASE + PROLOGUE_SLOTS * PROLOGUE_SIZE) {
+        return;
+    }
+    uint32_t dl = (uint32_t)MEM_W(0xC, (gpr)(int32_t)prologue);
+    if ((dl & 0xFF000000) != 0x80000000) {
+        return;
+    }
+    remove_side_borders(rdram, dl);
+    anchor_needle(rdram, dl, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
 }
