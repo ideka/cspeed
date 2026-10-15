@@ -341,6 +341,48 @@ void widen_full_width_fills(uint8_t* rdram) {
     }
 }
 
+// The sky is a translucent cloud dome (vertices rebuilt every frame in one of two buffers) drawn
+// after the distant scenery, with a constant depth: the depth source is set to "primitive" and the
+// primitive depth to the maximum, 0x7FFF, so the dome shows wherever nothing has been drawn yet and
+// stays behind the scenery. RT64 does not let that maximum depth pass against the cleared depth
+// buffer, so the clouds never showed (apart from stray patches at the edges of a widened view). The
+// dome's primitive depth is lowered a little, just in front of the cleared depth.
+constexpr uint32_t SKY_DOME_VTX_A = 0x8013AC70;
+constexpr uint32_t SKY_DOME_VTX_B = 0x80134870;
+constexpr uint32_t SKY_DOME_VTX_SIZE = 0x580;    // 8 triangles and 16 quads
+constexpr uint32_t G_SETPRIMDEPTH = 0xEE;
+constexpr uint32_t SKY_DOME_DEPTH = 0x7FF0;
+
+bool is_sky_dome_vertex(uint32_t addr) {
+    return (addr >= SKY_DOME_VTX_A && addr < SKY_DOME_VTX_A + SKY_DOME_VTX_SIZE) ||
+           (addr >= SKY_DOME_VTX_B && addr < SKY_DOME_VTX_B + SKY_DOME_VTX_SIZE);
+}
+
+void show_sky_dome(uint8_t* rdram, uint32_t dl) {
+    uint32_t prim_depth = 0;
+    for (int i = 0; i < 400; i++, dl += 8) {
+        gpr cmd = (gpr)(int32_t)dl;
+        uint32_t w0 = (uint32_t)MEM_W(0, cmd);
+        uint32_t w1 = (uint32_t)MEM_W(4, cmd);
+        uint32_t op = w0 >> 24;
+        if (op == 0xDF) {
+            return;
+        }
+        if (op == G_SETPRIMDEPTH) {
+            prim_depth = dl;
+        } else if (op == 0x01 && is_sky_dome_vertex(w1)) {
+            if (prim_depth != 0) {
+                gpr pd = (gpr)(int32_t)prim_depth;
+                uint32_t value = (uint32_t)MEM_W(4, pd);
+                if ((value >> 16) > SKY_DOME_DEPTH) {
+                    MEM_W(4, pd) = (int32_t)((SKY_DOME_DEPTH << 16) | (value & 0xFFFF));
+                }
+            }
+            return;
+        }
+    }
+}
+
 // Finds the needle's vertex load in the frame's top-level display list: "4 vertices" after the needle
 // colour, followed by its triangles. Returns the address of the vertex load (0 if not found) and
 // the triangles' address in *tri.
@@ -425,6 +467,7 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     if ((dl & 0xFF000000) != 0x80000000) {
         return;
     }
+    show_sky_dome(rdram, dl);
     remove_borders(rdram, dl);
     widen_full_width_fills(rdram);
     uint32_t tri = 0;
