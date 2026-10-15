@@ -218,4 +218,11 @@ extern "C" void cspeed_after_pak_probe(uint8_t* rdram, recomp_context* ctx) {
     gpr pfs = (gpr)(int32_t)(motor_pfs + channel * 0x68);
     MEM_W(0x4, pfs) = (int32_t)si_queue;   // queue
     MEM_W(0x8, pfs) = channel;             // channel (what the runtime's osMotorStart/Stop use)
+
+    // The controller thread only assigns controllers to player slots (0x8016D17E[]) when this flag
+    // asks it to re-query them. A failed pak probe sets it directly; after a successful one the game
+    // only sets it on its next call of the probe, which may not come before input is needed (with
+    // no slot assigned, all input is ignored). Ask for the re-query now.
+    constexpr gpr requery_controllers = (gpr)(int32_t)0x800200B0;
+    MEM_B(0, requery_controllers) = 1;
 }

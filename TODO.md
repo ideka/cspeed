@@ -13,6 +13,12 @@ far. Newest findings go into the item they belong to.
   tags their matrices (extended GBI `gEXMatrixGroup*`) or marks them as non-interpolated.
 - Needs: MIPS patch toolchain (see below), then find where the needle and the skid marks are drawn.
 
+### Midway logo flashes before animating in
+- On the startup screen, the Midway word briefly appears off to the side for a moment before its
+  animation starts. Cosmetic. Not yet checked whether it happens at the original framerate (if not,
+  it is the same interpolation issue as above: the first frame of the animation is interpolated
+  from a stale position).
+
 ### Widescreen ("Expand" aspect ratio) and HUD placement
 - "Expand" only draws extra bars on the sides; the camera view is not widened.
 - The HUD placement option has no effect.

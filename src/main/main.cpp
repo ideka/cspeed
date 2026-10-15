@@ -7,6 +7,7 @@
 #include <numeric>
 #include <stdexcept>
 #include <cinttypes>
+#include <chrono>
 
 #include "nfd.h"
 
@@ -620,6 +621,50 @@ void set_default_controller_mappings() {
     set(GameInput::BACK_MENU,   { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
 }
 
+// Debug aid: CSPEED_INPUT_SCRIPT="3:S,5:A,6.5:B" presses N64 buttons on controller 1 at the given
+// times (seconds since the first input poll) for 150 ms each, on top of the real input.
+// Buttons: A B Z S(tart) L R U/D/<\/> (d-pad) and u d l r (C buttons).
+bool get_n64_input_with_script(int player_index, uint16_t* buttons_out, float* x_out, float* y_out) {
+    bool ret = recompinput::profiles::get_n64_input(player_index, buttons_out, x_out, y_out);
+    static const char* script = getenv("CSPEED_INPUT_SCRIPT");
+    if (script == nullptr || player_index != 0) {
+        return ret;
+    }
+    static const auto start = std::chrono::steady_clock::now();
+    float now = std::chrono::duration<float>(std::chrono::steady_clock::now() - start).count();
+    for (const char* p = script; *p != '\0';) {
+        char* end;
+        float t = strtof(p, &end);
+        if (end == p || *end != ':' || end[1] == '\0') {
+            break;
+        }
+        char b = end[1];
+        if (now >= t && now < t + 0.15f) {
+            switch (b) {
+                case 'A': *buttons_out |= 0x8000; break;
+                case 'B': *buttons_out |= 0x4000; break;
+                case 'Z': *buttons_out |= 0x2000; break;
+                case 'S': *buttons_out |= 0x1000; break;
+                case 'U': *buttons_out |= 0x0800; break;
+                case 'D': *buttons_out |= 0x0400; break;
+                case '<': *buttons_out |= 0x0200; break;
+                case '>': *buttons_out |= 0x0100; break;
+                case 'L': *buttons_out |= 0x0020; break;
+                case 'R': *buttons_out |= 0x0010; break;
+                case 'u': *buttons_out |= 0x0008; break;
+                case 'd': *buttons_out |= 0x0004; break;
+                case 'l': *buttons_out |= 0x0002; break;
+                case 'r': *buttons_out |= 0x0001; break;
+            }
+        }
+        p = end + 2;
+        if (*p == ',') {
+            p++;
+        }
+    }
+    return ret;
+}
+
 // Debug aid: with CSPEED_AUTOSTART=1 the launcher starts the game on its first frame (if the ROM is
 // already set up), so test runs need no clicking.
 void on_launcher_update(recompui::LauncherMenu *menu) {
@@ -791,7 +836,7 @@ int main(int argc, char** argv) {
 
     ultramodern::input::callbacks_t input_callbacks{
         .poll_input = recompinput::poll_inputs,
-        .get_input = recompinput::profiles::get_n64_input,
+        .get_input = get_n64_input_with_script,
         .set_rumble = recompinput::set_rumble,
         .get_connected_device_info = get_connected_device_info,
     };
