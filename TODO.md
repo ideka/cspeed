@@ -57,7 +57,7 @@ far. Newest findings go into the item they belong to.
 ### Submodule patches
 - `lib/N64ModernRuntime` tracks the `cspeed` branch of the
   [ideka/N64ModernRuntime](https://github.com/ideka/N64ModernRuntime) fork (osStopThread on other
-  threads). Worth sending upstream as a PR.
+  threads). Upstream does not accept AI-assisted contributions, so it stays a fork.
 - `tools/runtime_patches/0002-*.patch` (RecompFrontend: F11/Alt+Enter fullscreen toggle is saved) is
   still applied by hand (`git -C lib/RecompFrontend apply ../../tools/runtime_patches/0002-*.patch`);
-  move it to a fork or upstream PR too.
+  move it to a RecompFrontend fork (upstream does not accept AI-assisted contributions).
