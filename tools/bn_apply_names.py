@@ -55,8 +55,16 @@ def main():
         if cur is None:
             print("create %08x %s" % (addr, want))
             if not dry:
-                get("/makeFunctionAt", address="0x%08x" % addr)
-                cur = get("/functionAt", address="0x%08x" % addr)["functions"][0]
+                r = get("/makeFunctionAt", address="0x%08x" % addr)
+                fl = get("/functionAt", address="0x%08x" % addr).get("functions") or []
+                # functionAt returns the containing function too; only accept an exact start
+                cur = None
+                for nm in fl:
+                    if nm.endswith("%x" % addr) or nm == want:
+                        cur = nm
+                if cur is None:
+                    print("   could not create/locate function at %08x: %s %s" % (addr, r, fl))
+                    continue
             created += 1
         if cur == want:
             same += 1

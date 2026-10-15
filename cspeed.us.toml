@@ -1,0 +1,18 @@
+# N64Recomp configuration for California Speed (USA)
+# Usage (from repo root):  N64Recomp\build\N64Recomp.exe cspeed.us.toml
+
+[input]
+entrypoint = 0x80000400
+rom_file_path = "California Speed (USA).z64"
+symbols_file_path = "cspeed.us.syms.toml"
+output_func_path = "RecompiledFuncs"
+functions_per_output_file = 50
+# trace_mode = true   # debugging only
+
+[patches]
+# Functions to stub out (compile to no-ops) / skip entirely. libultra functions that
+# N64Recomp knows by name (see N64Recomp/src/symbol_lists.cpp) are handled automatically.
+stubs = []
+# Dead code using ll/sc, sync, or shared asm tails is classified as data by tools/funcbounds.py
+# and never reaches the symbol file, so nothing needs ignoring yet.
+ignored = []
