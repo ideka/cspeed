@@ -18,7 +18,9 @@ stubs = []
 # The Controller Pak is emulated below libultra: the game's own osPfs* filesystem code is recompiled
 # (renamed game_* via symbols/recomp_names.json) and only these Serial Interface entry points are
 # implemented natively, in src/game/controller_pak.cpp.
-ignored = ["cspeed_osContRamRead", "cspeed_osContRamWrite", "cspeed_osPfsGetStatus", "cspeed_osPfsIsPlug"]
+ignored = ["cspeed_osContRamRead", "cspeed_osContRamWrite", "cspeed_osPfsGetStatus", "cspeed_osPfsIsPlug",
+# src/game/game_fixes.cpp
+           "cspeed_romLockTryAcquire"]
 
 # The idle thread (0x80000518) ends in `j .` at 0x800005C0. Spinning forever would starve the
 # runtime's cooperative scheduler ("No threads left to run!"), so pause the thread instead.

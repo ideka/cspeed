@@ -4,7 +4,7 @@
     "game_*: libultra functions N64Recomp would replace with the runtime's versions, but we want the game's",
     "own copy recompiled (Controller Pak filesystem: the runtime has no Controller Pak emulation).",
     "cspeed_*: functions implemented in src/game (listed as ignored in cspeed.us.toml); these are the only",
-    "places the Controller Pak code touches the Serial Interface."
+    "places the Controller Pak code touches the Serial Interface, plus game fixes in src/game/game_fixes.cpp."
   ],
   "osPfsChecker": "game_osPfsChecker",
   "corrupted_init": "game_corrupted_init",
@@ -30,5 +30,7 @@
   "__osContRamRead": "cspeed_osContRamRead",
   "__osContRamWrite": "cspeed_osContRamWrite",
   "__osPfsGetStatus": "cspeed_osPfsGetStatus",
-  "osPfsIsPlug": "cspeed_osPfsIsPlug"
+  "osPfsIsPlug": "cspeed_osPfsIsPlug",
+
+  "romLockTryAcquire": "cspeed_romLockTryAcquire"
 }

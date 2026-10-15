@@ -215,5 +215,14 @@
   "0x80014f20": "__d_to_ll_impl",
   "0x80015040": "__ll_to_d_impl",
   "0x80015140": "__d_to_ull_impl",
-  "0x80015230": "__ll_to_f_impl"
+  "0x80015230": "__ll_to_f_impl",
+  "0x800538a0": "siLockInit",
+  "0x800538f4": "siLockAcquire",
+  "0x80053930": "siLockRelease",
+  "0x80053a10": "romLockInit",
+  "0x80053a64": "romLockTryAcquire",
+  "0x80053ab4": "romLockRelease",
+  "0x80053adc": "romLoadCompressed",
+  "0x80053b3c": "musicLoaderThread",
+  "0x80053c68": "musicLoadRequest"
 }
