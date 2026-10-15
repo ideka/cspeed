@@ -39,6 +39,7 @@ far. Newest findings go into the item they belong to.
 - Plan: `pip install ziglang` (bundles clang and lld with all targets) and point `patches/Makefile`
   at `python -m ziglang cc` / `python -m ziglang ld.lld`.
 
-### N64ModernRuntime patch
-- `tools/runtime_patches/0001-osStopThread-other-thread.patch` is applied to the submodule by hand.
-  It should become a fork or an upstream PR.
+### Submodule patches
+- `tools/runtime_patches/` holds fixes applied to submodules by hand (`git -C lib/<module> apply ...`):
+  0001 (N64ModernRuntime: osStopThread on other threads), 0002 (RecompFrontend: F11/Alt+Enter fullscreen
+  toggle is saved). They should become forks or upstream PRs.
