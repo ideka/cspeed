@@ -164,7 +164,7 @@ set (SOURCES
 )
 
 # The recompiled RSP microcode uses SSE4.1/SSSE3 intrinsics (librecomp/rsp_vu_impl.hpp).
-if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+if (NOT CMAKE_SYSTEM_PROCESSOR MATCHES "arm|ARM|aarch64")   # CMAKE_SYSTEM_PROCESSOR is empty under vcvars+Ninja
     if (MSVC)
         set_source_files_properties(${CMAKE_SOURCE_DIR}/rsp/aspMain.cpp PROPERTIES COMPILE_OPTIONS "/clang:-msse4.1;/clang:-mssse3")
     else()

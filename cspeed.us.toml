@@ -15,4 +15,6 @@ functions_per_output_file = 50
 stubs = []
 # Dead code using ll/sc, sync, or shared asm tails is classified as data by tools/funcbounds.py
 # and never reaches the symbol file, so nothing needs ignoring yet.
-ignored = []
+# Controller Pak internals only reached from osPfs* (which the runtime reimplements); they call
+# __osContRamRead/__osContRamWrite/__osPfsSelectBank, which N64Recomp ignores, so skip them too.
+ignored = ["__osPfsClearPage", "__osPfsSumPage", "__osPfsDeclearPage", "__osPfsReleasePages"]

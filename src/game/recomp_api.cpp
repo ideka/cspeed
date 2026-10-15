@@ -3,6 +3,7 @@
 #include "recomp.h"
 #include "librecomp/overlays.hpp"
 #include "librecomp/addresses.hpp"
+#include "librecomp/game.hpp"
 #include "cspeed_config.h"
 #include "recompinput/recompinput.h"
 #include "recompui/recompui.h"
@@ -189,3 +190,19 @@ extern "C" void recomp_xxh3(uint8_t* rdram, recomp_context* ctx) {
     ctx->r3 = (int32_t)(ret >> 0);
 }
 
+
+// libultra's osPiRawReadIo is called directly by the game's boot() (and by osInitialize).
+// The runtime only reimplements the handle-based osEPiReadIo, so provide the raw flavour here.
+extern "C" void osPiRawReadIo_recomp(uint8_t* rdram, recomp_context* ctx) {
+    uint32_t dev_addr = (uint32_t)ctx->r4 & 0x1FFFFFFF;
+    gpr dram_addr = ctx->r5;
+    if (dev_addr >= recomp::rom_base) {
+        recomp::do_rom_pio(rdram, dram_addr, dev_addr);
+    } else if (dev_addr < 0x00800000) {
+        // RDRAM read through the PI (boot() does this for 0x00FFB000.. on non-NTSC consoles)
+        MEM_W(0, dram_addr) = MEM_W(0, (gpr)(int32_t)(0x80000000u | dev_addr));
+    } else {
+        MEM_W(0, dram_addr) = 0;
+    }
+    ctx->r2 = 0;
+}

@@ -146,6 +146,31 @@ curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,jso
 - Audio task (set up at `0x800577C0`): aspMain text `0x80015400` (ROM `0x16000`, `0xE20` bytes), data `0x8001B140`; dispatch table at data+0x10 (16 commands). See `aspMain.us.toml`.
 - Saves: Controller Pak (osPfs*) only; no EEPROM/SRAM/Flash commands exist in the ROM, so the game entry uses `SaveType::None`.
 
+## Status and known issues (2026-10-15)
+- The whole pipeline runs: symbols -> N64Recomp -> RSPRecomp -> CMake build of `CaliforniaSpeedRecompiled.exe`
+  (see the build notes below for what was needed to get there).
+- **No MIPS compiler on this machine.** The LLVM 21 in `%LLVM_DIR%` was built without the Mips
+  target, so `patches/` cannot be compiled yet. `patches/Makefile` detects this and writes an empty
+  `patches.elf` (via `tools/make_empty_patches_elf.py`), which keeps the build working with zero patches.
+  To write real patches, install a clang with MIPS support (the official LLVM release via
+  `winget install LLVM.LLVM`, or the VS 2022 "C++ Clang Compiler for Windows" component) and rebuild.
+- `osMotorStart`/`osMotorStop` (0x8000C7A0 / 0x8000C960) are identical code using different buffers; the
+  names may be swapped. Verify with rumble in game.
+- `__osExceptionPreamble` (0x8000E170) is split by two bogus seeds; harmless (N64Recomp ignores it).
+- Binary Ninja's function list contains ~1859 seeds; after cleanup 1409 functions remain
+  (1226 reachable from the entry point). Unreachable-but-kept functions are dead code or pointer-called.
+
+## Build notes (Windows)
+- Use `build.bat` (VS 2022 env + `clang-cl` from `%LLVM_DIR%` + VS Ninja + GnuWin32 make).
+  The template expects the `clang_cl_x64` toolset; plain `clang` fails on MSVC-style flags.
+- `__PRFCHWINTRIN_H` is pre-defined for clang-cl because RT64's bundled SDL2 2.26 headers define
+  `_m_prefetch`, which newer clang treats as a builtin.
+- `rsp/aspMain.cpp` is compiled with `/clang:-msse4.1 /clang:-mssse3` (librecomp's RSP vector unit uses them).
+- CMake runs `N64Recomp` from the repo root for the patch step: copy `N64Recomp/build/N64Recomp.exe`
+  and `RSPRecomp.exe` to the root (both are git-ignored).
+- `src/game/recomp_api.cpp` provides `osPiRawReadIo_recomp`, which the game's `boot()` calls directly
+  and the runtime does not implement.
+
 ## References
 - https://github.com/N64Recomp/N64Recomp
 - https://github.com/N64Recomp/N64ModernRuntime
