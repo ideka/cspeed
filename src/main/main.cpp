@@ -631,8 +631,9 @@ void set_default_controller_mappings() {
     set(GameInput::BACK_MENU,   { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
 }
 
-// Debug aid: CSPEED_INPUT_SCRIPT="3:S,5:A,6.5:B" presses N64 buttons on controller 1 at the given
-// times (seconds since the first input poll) for 150 ms each, on top of the real input.
+// Debug aid: CSPEED_INPUT_SCRIPT="3:S,5:A,6.5:B/2" presses N64 buttons on controller 1 at the given
+// times (seconds since the first input poll), on top of the real input: for 150 ms, or for the
+// number of seconds after a slash.
 // Buttons: A B Z S(tart) L R U/D/<\/> (d-pad) and u d l r (C buttons).
 bool get_n64_input_with_script(int player_index, uint16_t* buttons_out, float* x_out, float* y_out) {
     bool ret = recompinput::profiles::get_n64_input(player_index, buttons_out, x_out, y_out);
@@ -649,7 +650,14 @@ bool get_n64_input_with_script(int player_index, uint16_t* buttons_out, float* x
             break;
         }
         char b = end[1];
-        if (now >= t && now < t + 0.15f) {
+        const char* next = end + 2;
+        float duration = 0.15f;
+        if (*next == '/') {
+            char* dur_end;
+            duration = strtof(next + 1, &dur_end);
+            next = dur_end;
+        }
+        if (now >= t && now < t + duration) {
             switch (b) {
                 case 'A': *buttons_out |= 0x8000; break;
                 case 'B': *buttons_out |= 0x4000; break;
@@ -667,12 +675,18 @@ bool get_n64_input_with_script(int player_index, uint16_t* buttons_out, float* x
                 case 'r': *buttons_out |= 0x0001; break;
             }
         }
-        p = end + 2;
+        p = next;
         if (*p == ',') {
             p++;
         }
     }
     return ret;
+}
+
+// Scripted test runs (CSPEED_INPUT_SCRIPT) never rumble the real controller.
+void set_rumble_unless_scripted(int controller_num, bool on) {
+    static const bool scripted = getenv("CSPEED_INPUT_SCRIPT") != nullptr;
+    recompinput::set_rumble(controller_num, on && !scripted);
 }
 
 // Debug aid: with CSPEED_AUTOSTART=1 the launcher starts the game on its first frame (if the ROM is
@@ -847,7 +861,7 @@ int main(int argc, char** argv) {
     ultramodern::input::callbacks_t input_callbacks{
         .poll_input = recompinput::poll_inputs,
         .get_input = get_n64_input_with_script,
-        .set_rumble = recompinput::set_rumble,
+        .set_rumble = set_rumble_unless_scripted,
         .get_connected_device_info = get_connected_device_info,
     };
 

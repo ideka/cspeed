@@ -81,8 +81,8 @@ bool in_race(uint8_t* rdram) {
 
 // Hook in the camera setup (func_800CF0B4) right after it writes G_SETSCISSOR into the display list
 // ($t0 = display list position: scissor words at +0x10/+0x14; $s1 = camera index). When the camera's
-// viewport spans the whole screen and the scissor is centred in it, open the scissor horizontally to
-// the full width so RT64 expands the scene. Split-screen viewports are left untouched.
+// viewport spans the whole screen and the scissor is centred in it, open the scissor to the full
+// screen so RT64 expands the scene. Split-screen viewports are left untouched.
 extern "C" void cspeed_widescreen_camera_scissor(uint8_t* rdram, recomp_context* ctx) {
     if (!expand_enabled() || !in_race(rdram)) {
         return;
@@ -103,8 +103,10 @@ extern "C" void cspeed_widescreen_camera_scissor(uint8_t* rdram, recomp_context*
     if (ulx + lrx != width || lrx - ulx < width / 2) {
         return;                         // not a centred, mostly full-width scissor
     }
-    MEM_W(0x10, dl) = (int32_t)(ul & ~(0xFFFu << 12));                       // ulx = 0
-    MEM_W(0x14, dl) = (int32_t)((lr & ~(0xFFFu << 12)) | ((uint32_t)width << 12)); // lrx = width
+    // Open it to the whole screen; the frame's black border strips are removed as well (see
+    // remove_borders), so the scene also fills the 10-pixel bands at the top and bottom.
+    MEM_W(0x10, dl) = (int32_t)(ul & 0xFF000000u);                                         // ulx = uly = 0
+    MEM_W(0x14, dl) = (int32_t)(((uint32_t)width << 12) | (uint32_t)(MEM_H(10, vp) * 2));  // lrx = width, lry = height
 }
 
 // HUD placement.
@@ -133,13 +135,15 @@ constexpr gpr HUD_CLIP_LEFT = (gpr)(int32_t)0x801426D0;
 constexpr gpr HUD_CLIP_RIGHT = (gpr)(int32_t)0x80134380;
 constexpr int32_t SCREEN_WIDTH = 320;
 constexpr int32_t SCREEN_HEIGHT = 240;
-// Extends scissors and full-width overlays well past the left/right origins so that they always
-// reach the window edges, whatever the HUD ratio option puts the origins at (10.2 fixed point).
-constexpr int32_t BEYOND_EDGE = 1000 * 4;
-constexpr uint32_t WIDE_SCISSOR_UL = ((uint32_t)(-BEYOND_EDGE) & 0xFFFF) << 16;                          // ulx, uly = 0
-constexpr uint32_t WIDE_SCISSOR_LR = ((uint32_t)BEYOND_EDGE & 0xFFFF) << 16 | (uint32_t)(SCREEN_HEIGHT * 4); // lrx, lry
 
+// Scissors for the HUD list. "Wide" spans the left to the right HUD origin (where RT64 puts the
+// anchored HUD for the chosen HUD ratio); "plain" is the normal full screen, which RT64 stretches to
+// the whole window and which full-width overlays need. Keep scissors within the screen: RT64 derives
+// its 2D aspect ratio from the framebuffer's overall scissor, so anything larger distorts the HUD.
+enum class HudScissor { Unset, Wide, Plain };
+HudScissor hud_scissor = HudScissor::Unset;
 uint64_t last_rect_align = ~0ull;
+uint32_t hud_list_start = 0;
 
 bool hud_alignment_active(uint8_t* rdram) {
     return expand_enabled() && in_race(rdram);
@@ -160,31 +164,48 @@ void emit_hud_command(uint8_t* rdram, uint32_t w0, uint32_t w1, uint32_t w2, uin
     MEM_W(0, HUD_DL_HEAD) = (int32_t)(head + 16);
 }
 
+void set_hud_scissor(uint8_t* rdram, HudScissor scissor) {
+    if (scissor == hud_scissor) {
+        return;
+    }
+    hud_scissor = scissor;
+    // gEXSetScissor(G_SC_NON_INTERLACE, lorigin, rorigin, 0, 0, lrx, 240): with the right origin,
+    // lrx 0 is the right HUD edge.
+    bool wide = (scissor == HudScissor::Wide);
+    uint32_t lorigin = wide ? G_EX_ORIGIN_LEFT : G_EX_ORIGIN_NONE;
+    uint32_t rorigin = wide ? G_EX_ORIGIN_RIGHT : G_EX_ORIGIN_NONE;
+    uint32_t lrx = wide ? 0 : (uint32_t)(SCREEN_WIDTH * 4);
+    emit_hud_command(rdram,
+        (RT64_EXTENDED_OPCODE << 24) | G_EX_SETSCISSOR_V1,
+        (lorigin << 2) | (rorigin << 14),
+        0,
+        (lrx << 16) | (uint32_t)(SCREEN_HEIGHT * 4));
+}
+
 } // namespace
 
 // Hook at the end of func_8005A0D8 (begin the 2D list).
 extern "C" void cspeed_hud_begin(uint8_t* rdram, recomp_context* ctx) {
     last_rect_align = ~0ull;
+    hud_scissor = HudScissor::Unset;
+    hud_list_start = 0;
     if (!hud_alignment_active(rdram)) {
         return;
     }
-    // gEXSetScissor(G_SC_NON_INTERLACE, LEFT, RIGHT, ...): the whole window.
-    emit_hud_command(rdram,
-        (RT64_EXTENDED_OPCODE << 24) | G_EX_SETSCISSOR_V1,
-        (G_EX_ORIGIN_LEFT << 2) | (G_EX_ORIGIN_RIGHT << 14),
-        WIDE_SCISSOR_UL,
-        WIDE_SCISSOR_LR);
+    hud_list_start = (uint32_t)MEM_W(0, HUD_DL_HEAD);
+    set_hud_scissor(rdram, HudScissor::Wide);
 }
 
 // Hook at the entry of func_8005C718 (draw sprite) and func_8005CCC4 (fill rectangle); both take
 // $a0..$a3 = ulx, uly, lrx, lry in screen pixels. Rectangles that span (nearly) the whole screen
-// width, like the pause screen's darkening, are stretched from edge to edge instead.
+// width, like the pause screen's darkening, are left unanchored under the plain scissor; their fill
+// rectangles are widened to the full screen at frame submission so that RT64 stretches them over
+// the whole window (see widen_full_width_fills).
 extern "C" void cspeed_hud_sprite_align(uint8_t* rdram, recomp_context* ctx) {
     if (!hud_alignment_active(rdram)) {
         return;
     }
-    // The drawers clip the rectangle to the 2D clip region after this hook runs; do the same here so
-    // the offsets match what is actually drawn.
+    // The drawers clip the rectangle to the 2D clip region after this hook runs; do the same here.
     int32_t ulx = std::max((int32_t)ctx->r4, (int32_t)MEM_W(0, HUD_CLIP_LEFT));
     int32_t lrx = std::min((int32_t)ctx->r6, (int32_t)MEM_W(0, HUD_CLIP_RIGHT));
     int32_t center_x = (ulx + lrx) / 2;
@@ -192,17 +213,15 @@ extern "C" void cspeed_hud_sprite_align(uint8_t* rdram, recomp_context* ctx) {
     uint32_t rorigin = G_EX_ORIGIN_NONE;
     int32_t ul_offset = 0;
     int32_t lr_offset = 0;
-    if (ulx <= 16 && lrx >= SCREEN_WIDTH - 16) {
-        // Full width: stretch past both window edges (the scissor cuts it at the window).
-        lorigin = G_EX_ORIGIN_LEFT;
-        rorigin = G_EX_ORIGIN_RIGHT;
-        ul_offset = -ulx * 4 - BEYOND_EDGE;
-        lr_offset = -lrx * 4 + BEYOND_EDGE;
+    bool full_width = (ulx <= 16 && lrx >= SCREEN_WIDTH - 16);
+    set_hud_scissor(rdram, full_width ? HudScissor::Plain : HudScissor::Wide);
+    if (full_width) {
+        // Unanchored: RT64 stretches full-screen rectangles over the whole window by itself.
     } else if (center_x < SCREEN_WIDTH * 2 / 5) {
         lorigin = rorigin = G_EX_ORIGIN_LEFT;
     } else if (center_x > SCREEN_WIDTH * 3 / 5) {
         lorigin = rorigin = G_EX_ORIGIN_RIGHT;
-        ul_offset = lr_offset = -SCREEN_WIDTH * 4;
+        ul_offset = lr_offset = -SCREEN_WIDTH * 4;   // the right origin adds the screen width
     }
     // gEXSetRectAlign(lorigin, rorigin, ul_offset, 0, lr_offset, 0)
     uint32_t w1 = lorigin | (rorigin << 12);
@@ -235,8 +254,10 @@ constexpr uint32_t NEEDLE_DL_BASE = PROLOGUE_BASE + 0x1000;   // one list per pr
 constexpr uint32_t NEEDLE_DL_SIZE = 128;
 constexpr gpr VIEWPORTS = (gpr)(int32_t)0x80022FB0;            // pointer to this frame's Vp array
 
-void remove_side_borders(uint8_t* rdram, uint32_t dl) {
-    // The borders come within the first few dozen commands, before any geometry.
+void remove_borders(uint8_t* rdram, uint32_t dl) {
+    // The borders come within the first few dozen commands, before any geometry: narrow full-height
+    // strips at the sides and short full-width strips at the top and bottom. They are removed so the
+    // race view fills the whole screen.
     for (int i = 0; i < 64; i++, dl += 8) {
         gpr cmd = (gpr)(int32_t)dl;
         uint32_t w0 = (uint32_t)MEM_W(0, cmd);
@@ -250,9 +271,59 @@ void remove_side_borders(uint8_t* rdram, uint32_t dl) {
         }
         int32_t lrx = (w0 >> 12) & 0xFFF, lry = w0 & 0xFFF;    // 10.2 fixed point
         int32_t ulx = (w1 >> 12) & 0xFFF, uly = w1 & 0xFFF;
-        if (lrx - ulx <= 16 * 4 && lry - uly >= 200 * 4) {
+        bool side = (lrx - ulx <= 16 * 4 && lry - uly >= 200 * 4);
+        bool top_bottom = (lry - uly <= 12 * 4 && lrx - ulx >= 300 * 4 &&
+                           (uly == 0 || lry >= (SCREEN_HEIGHT - 12) * 4));
+        if (side || top_bottom) {
             MEM_W(0, cmd) = 0;          // G_NOOP
             MEM_W(4, cmd) = 0;
+            continue;
+        }
+        // The sky and ground colour fills stop where the borders were; extend them to the edges.
+        if (lrx - ulx >= 300 * 4) {
+            if (uly == 10 * 4) {
+                uly = 0;
+            }
+            if (lry == 229 * 4) {
+                lry = (SCREEN_HEIGHT - 1) * 4;
+            }
+            MEM_W(0, cmd) = (int32_t)((w0 & ~0xFFFu) | (uint32_t)lry);
+            MEM_W(4, cmd) = (int32_t)((w1 & ~0xFFFu) | (uint32_t)uly);
+        }
+    }
+}
+
+// Full-width fill rectangles in the HUD list (the pause screen darkening) start at x = 12 and are
+// clipped to x = 319 by the game. RT64 only stretches rectangles that cover the whole screen over the
+// whole window, so make them exactly cover it.
+void widen_full_width_fills(uint8_t* rdram) {
+    if (hud_list_start == 0) {
+        return;
+    }
+    uint32_t end = HUD_DL_BASE + (uint32_t)MEM_W(0, HUD_DL_INDEX) * HUD_DL_SIZE + HUD_DL_SIZE;
+    for (uint32_t dl = hud_list_start; dl + 8 <= end; dl += 8) {
+        gpr cmd = (gpr)(int32_t)dl;
+        uint32_t w0 = (uint32_t)MEM_W(0, cmd);
+        uint32_t w1 = (uint32_t)MEM_W(4, cmd);
+        uint32_t op = w0 >> 24;
+        if (op == 0xDF) {
+            break;
+        }
+        if (op != 0xF6) {
+            continue;
+        }
+        int32_t lrx = (w0 >> 12) & 0xFFF, lry = w0 & 0xFFF;
+        int32_t ulx = (w1 >> 12) & 0xFFF, uly = w1 & 0xFFF;
+        if (ulx <= 16 * 4 && lrx >= (SCREEN_WIDTH - 16) * 4) {
+            // Also cover the top and bottom bands, which the race view now fills (remove_borders).
+            if (uly <= 16 * 4) {
+                uly = 0;
+            }
+            if (lry >= (SCREEN_HEIGHT - 16) * 4) {
+                lry = SCREEN_HEIGHT * 4;
+            }
+            MEM_W(0, cmd) = (int32_t)((w0 & 0xFF000000u) | ((uint32_t)(SCREEN_WIDTH * 4) << 12) | (uint32_t)lry);
+            MEM_W(4, cmd) = (int32_t)((w1 & 0xFF000000u) | (uint32_t)uly);
         }
     }
 }
@@ -294,9 +365,9 @@ void anchor_needle(uint8_t* rdram, uint32_t vtx_addr, uint32_t tri_addr, uint32_
     uint32_t align = (RT64_EXTENDED_OPCODE << 24) | G_EX_SETVIEWPORTALIGN_V1;
     uint32_t right_offset = ((uint32_t)(-SCREEN_WIDTH * 4) & 0xFFFF) << 16;
     int32_t words[] = {
-        (int32_t)((RT64_EXTENDED_OPCODE << 24) | G_EX_SETSCISSOR_V1),   // gEXSetScissor(LEFT, RIGHT, ...):
-        (int32_t)((G_EX_ORIGIN_LEFT << 2) | (G_EX_ORIGIN_RIGHT << 14)),  //   the whole window (the needle
-        (int32_t)WIDE_SCISSOR_UL, (int32_t)WIDE_SCISSOR_LR,             //   may pass the old 4:3 edge)
+        (int32_t)((RT64_EXTENDED_OPCODE << 24) | G_EX_SETSCISSOR_V1),   // gEXSetScissor(LEFT, RIGHT,
+        (int32_t)((G_EX_ORIGIN_LEFT << 2) | (G_EX_ORIGIN_RIGHT << 14)),  //   0, 0, 0, 240): HUD edge to HUD
+        0, SCREEN_HEIGHT * 4,                                           //   edge (the needle may pass the 4:3 edge)
         (int32_t)align, (int32_t)G_EX_ORIGIN_RIGHT,                     // gEXSetViewportAlign(RIGHT, -320*4, 0)
         (int32_t)right_offset, 0,
         (int32_t)0xDC080008, (int32_t)viewport,                        // gSPViewport (F3DEX2 movemem)
@@ -338,6 +409,7 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     if (!needle_drawn_last_frame || !expand_enabled()) {
         return;
     }
-    remove_side_borders(rdram, dl);
+    remove_borders(rdram, dl);
+    widen_full_width_fills(rdram);
     anchor_needle(rdram, needle, tri, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
 }
