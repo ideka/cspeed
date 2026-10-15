@@ -132,22 +132,28 @@ def branches_out(A, start, end):
         kind, tgt = decode_flow(x, pc)
         if kind in ("b", "B") and not (start <= tgt < end):
             return True
+        if kind == "j" and not (start <= tgt < end) and tgt not in A.seeds:
+            return True
+    return False
+
+
+def uses_privileged(w):
+    """cop0 / cache / ll / sc / sync / syscall: never in compiled game code, and not
+    supported by N64Recomp. Named libultra functions are allowed to use them."""
+    for x in w:
+        op = x >> 26
+        if op in (0x10, 0x2F, 0x30, 0x38) or (op == 0 and (x & 63) in (0x0C, 0x0F)):
+            return True
     return False
 
 
 def looks_like_data(w, named=False):
     """Heuristic: invalid instructions, or mostly zero words (ignoring trailing padding).
-    Unless `named` (a known libultra function), cop0 / cache / tlb / eret also mean data:
-    compiled game code never contains them."""
+    Unless `named` (a known libultra function), privileged instructions also mean data."""
     if not w or invalid_count(w) > 0:
         return True
-    if not named:
-        for x in w:
-            op = x >> 26
-            if op in (0x10, 0x2F, 0x30, 0x38) or (op == 0 and (x & 63) in (0x0C, 0x0F)):
-                return True
-            if op == 0x11 and ((x >> 21) & 31) in (2, 6):
-                return True
+    if not named and uses_privileged(w):
+        return True
     n = len(w)
     while n > 0 and w[n - 1] == 0:
         n -= 1
@@ -300,7 +306,7 @@ def compute(A, text_end=None):
     base_seeds = sorted(set(A.funcs) | set(MANUAL_SEEDS))
     A.table_targets = set()
     A.named = set(load_names())
-    junk0 = {a for a, f in A.feat.items() if looks_like_data(f["words"], named=a in A.named)}
+    junk0 = {a for a, f in A.feat.items() if looks_like_data(f["words"], named=True)}
     A.junk0 = junk0
     funcs = _compute(A, base_seeds, refs_from=lambda a: a not in junk0)
     for _ in range(4):
@@ -319,6 +325,9 @@ def compute(A, text_end=None):
                 jal_tgts.update(t for t in f["callees"] if A.seg_of(t) and t < text_end[A.seg_of(t)[0]])
                 jal_tgts.update(t for t in f["consts"] if A.seg_of(t) and t < text_end[A.seg_of(t)[0]]
                                 and t % 4 == 0 and A.word(t) != 0)
+        covered = [(s_, e_) for s_, e_, _ in funcs if s_ not in junk]
+        jal_tgts |= pointer_seeds(A, text_end, covered)
+        jal_tgts |= prologue_seeds(A, text_end, covered)
         funcs = _compute(A, sorted(set(base_seeds) | jal_tgts), refs_from=real)
     junk, live, text_end = _classify(A, funcs)
     A.text_end, A.junk, A.live = text_end, junk, live
@@ -326,13 +335,59 @@ def compute(A, text_end=None):
     return [f for f in funcs if f[0] not in junk and f[0] < text_end[A.seg_of(f[0])[0]]]
 
 
+def _inside(covered, a):
+    i = bisect.bisect_right(covered, (a, 0xFFFFFFFF)) - 1
+    return i >= 0 and covered[i][0] <= a < covered[i][1]
+
+
+def pointer_seeds(A, text_end, covered):
+    """Data words anywhere in the ROM that point into code but not into a known function."""
+    out = set()
+    n = len(A.rom) // 4
+    for w in struct.unpack(">%dI" % n, A.rom[:n * 4]):
+        seg = A.seg_of(w)
+        if seg and w % 4 == 0 and w < text_end[seg[0]] and not _inside(covered, w) and A.word(w) not in (None, 0):
+            out.add(w)
+    return out
+
+
+def prologue_seeds(A, text_end, covered):
+    """Gaps between functions that begin (after nop padding) with addiu $sp, $sp, -N."""
+    out = set()
+    for seg in A.segs:
+        tend = text_end[seg[0]]
+        cs = [c for c in covered if seg[1] <= c[0] < seg[2]]
+        for (s0, e0), (s1, e1) in zip(cs, cs[1:]):
+            a = e0
+            while a < s1 and A.word(a) == 0:
+                a += 4
+            if a < s1 and a < tend:
+                x = A.word(a)
+                if (x >> 16) == 0x27BD and (x & 0x8000):
+                    out.add(a)
+    return out
+
+
 def _classify(A, funcs):
     starts = {f[0]: f for f in funcs}
     junk = set()
+    soft = set()
     for s_, e_, _ in funcs:
         w = A.words(s_, (e_ - s_) // 4)
-        if looks_like_data(w, named=s_ in A.named) or (s_ not in A.named and branches_out(A, s_, e_)):
+        if looks_like_data(w, named=True) or (s_ not in A.named and branches_out(A, s_, e_)):
             junk.add(s_)
+        elif s_ not in A.named and uses_privileged(w):
+            soft.add(s_)
+    # soft junk is kept if some hard-non-junk function jal-calls it (N64Recomp will then
+    # complain about the instruction and we handle it by name)
+    called = set()
+    for s_, e_, _ in funcs:
+        if s_ in junk:
+            continue
+        for x in A.words(s_, (e_ - s_) // 4):
+            if (x >> 26) == 3:
+                called.add(((x & 0x3FFFFFF) << 2) | 0x80000000)
+    junk |= {a for a in soft if a not in called}
     # references between functions (recomputed on the walker's extents)
     refs = {}
     for s_, e_, _ in funcs:
@@ -415,7 +470,7 @@ def _compute(A, seeds, refs_from):
         j = i + 1
         k = bisect.bisect_right(anchored_sorted, s)
         hard = anchored_sorted[k] if k < len(anchored_sorted) and A.seg_of(anchored_sorted[k]) == seg else seg[2]
-        trusted = s in A.anchored or s in MANUAL_SEEDS
+        trusted = s in A.anchored or s in MANUAL_SEEDS or s not in getattr(A, "junk0", ())
         while True:
             nxt = seeds[j] if j < len(seeds) and A.seg_of(seeds[j]) == seg else None
             limit = nxt if nxt is not None else seg[2]
