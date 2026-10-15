@@ -14,7 +14,6 @@ namespace {
 constexpr uint32_t RT64_HOOK_WORD0 = (0xE0u << 24) | 0x525464;      // G_NOOP carrying the RT64 magic
 constexpr uint32_t RT64_EXTENDED_OPCODE = 0x64;
 constexpr uint32_t RT64_HOOK_OP_ENABLE = 0x1;
-constexpr uint32_t G_EX_SETREFRESHRATE_V1 = 0x000009;
 constexpr uint32_t G_DL_BRANCH_WORD0 = 0xDE010000;                    // gSPBranchList
 
 // Per-frame prologue display lists live in the last 64 KiB of the extra RAM recomp provides
@@ -22,14 +21,8 @@ constexpr uint32_t G_DL_BRANCH_WORD0 = 0xDE010000;                    // gSPBran
 // address, so a prologue is never rewritten while RT64 may still be reading an earlier frame.
 constexpr uint32_t PROLOGUE_BASE = 0x80FF0000;
 constexpr size_t PROLOGUE_SLOTS = 16;
-constexpr uint32_t PROLOGUE_SIZE = 32;
-constexpr uint32_t PROLOGUE_BRANCH_TARGET = 0x1C;   // offset of the game display list's address
-
-// The startup logo screen (game mode 15) is drawn with 2D rectangles that RT64's frame interpolation
-// matched up wrongly when the logo appears, flashing it at a stale position. On that screen the
-// frame declares a refresh rate above any display's, so RT64 generates no in-between frames.
-constexpr gpr GAME_MODE_ADDR = (gpr)(int32_t)0x80141E00;
-constexpr int32_t GAME_MODE_LOGO = 15;
+constexpr uint32_t PROLOGUE_SIZE = 16;
+constexpr uint32_t PROLOGUE_BRANCH_TARGET = 0xC;    // offset of the game display list's address
 
 } // namespace
 
@@ -56,19 +49,7 @@ extern "C" void cspeed_gfx_task_prologue(uint8_t* rdram, recomp_context* ctx) {
     gpr prologue = (gpr)(int32_t)(PROLOGUE_BASE + slot * PROLOGUE_SIZE);
     MEM_W(0x0, prologue) = (int32_t)RT64_HOOK_WORD0;
     MEM_W(0x4, prologue) = (int32_t)((RT64_HOOK_OP_ENABLE << 28) | RT64_EXTENDED_OPCODE);
-    if (MEM_W(0, GAME_MODE_ADDR) == GAME_MODE_LOGO) {
-        // gEXSetRefreshRate(1000)
-        MEM_W(0x8, prologue) = (int32_t)((RT64_EXTENDED_OPCODE << 24) | G_EX_SETREFRESHRATE_V1);
-        MEM_W(0xC, prologue) = 1000;
-        MEM_W(0x10, prologue) = 0;                  // G_SPNOOP
-        MEM_W(0x14, prologue) = 0;
-    } else {
-        MEM_W(0x8, prologue) = 0;                   // G_SPNOOP
-        MEM_W(0xC, prologue) = 0;
-        MEM_W(0x10, prologue) = 0;
-        MEM_W(0x14, prologue) = 0;
-    }
-    MEM_W(0x18, prologue) = (int32_t)G_DL_BRANCH_WORD0;
+    MEM_W(0x8, prologue) = (int32_t)G_DL_BRANCH_WORD0;
     MEM_W(PROLOGUE_BRANCH_TARGET, prologue) = (int32_t)dl;
     MEM_W(0x58, task) = (int32_t)(PROLOGUE_BASE + slot * PROLOGUE_SIZE);
 }
