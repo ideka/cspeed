@@ -17,7 +17,10 @@ stubs = []
 # and never reaches the symbol file, so nothing needs ignoring yet.
 # Controller Pak internals only reached from osPfs* (which the runtime reimplements); they call
 # __osContRamRead/__osContRamWrite/__osPfsSelectBank, which N64Recomp ignores, so skip them too.
-ignored = ["__osPfsClearPage", "__osPfsSumPage", "__osPfsDeclearPage", "__osPfsReleasePages"]
+# cspeed_osPfsInitPak is libultra's osPfsInitPak, renamed so src/game/recomp_api.cpp can answer the
+# game's Rumble Pak probe (the runtime's version always reports "no pak").
+ignored = ["__osPfsClearPage", "__osPfsSumPage", "__osPfsDeclearPage", "__osPfsReleasePages",
+           "cspeed_osPfsInitPak"]
 
 # The idle thread (0x80000518) ends in `j .` at 0x800005C0. Spinning forever would starve the
 # runtime's cooperative scheduler ("No threads left to run!"), so pause the thread instead.

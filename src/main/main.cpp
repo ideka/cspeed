@@ -598,6 +598,25 @@ void on_launcher_init(recompui::LauncherMenu *menu) {
     cspeed::launcher_animation_setup(menu);
 }
 
+// Default controller layout: Nintendo-style face buttons (A right, B bottom), C-Up (the only C
+// button the game really uses) on the top button, L/R on the bumpers with R also on the right trigger.
+void set_default_controller_mappings() {
+    using recompinput::GameInput;
+    using recompinput::InputField;
+    auto set = recompinput::set_default_mapping_for_controller;
+    set(GameInput::A,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
+    set(GameInput::B,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
+    set(GameInput::L,       { InputField::controller_digital(SDL_CONTROLLER_BUTTON_LEFTSHOULDER) });
+    set(GameInput::R,       { InputField::controller_analog(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, true),
+                              InputField::controller_digital(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) });
+    set(GameInput::Z,       { InputField::controller_analog(SDL_CONTROLLER_AXIS_TRIGGERLEFT, true) });
+    set(GameInput::C_UP,    { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTY, false),
+                              InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_NORTH) });
+    set(GameInput::C_DOWN,  { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTY, true) });
+    set(GameInput::C_LEFT,  { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTX, false) });
+    set(GameInput::C_RIGHT, { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTX, true) });
+}
+
 // Debug aid: with CSPEED_AUTOSTART=1 the launcher starts the game on its first frame (if the ROM is
 // already set up), so test runs need no clicking.
 void on_launcher_update(recompui::LauncherMenu *menu) {
@@ -737,6 +756,7 @@ int main(int argc, char** argv) {
     recomputil::init_extended_object_data(2);
 
     recompinput::players::set_single_player_mode(true);
+    set_default_controller_mappings();
 
     cspeed::init_config();
 
