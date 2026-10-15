@@ -171,6 +171,18 @@ curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,jso
 - `src/game/recomp_api.cpp` provides `osPiRawReadIo_recomp`, which the game's `boot()` calls directly
   and the runtime does not implement.
 
+## Running it
+```
+build.bat                         # builds build/CaliforniaSpeedRecompiled.exe (and copies assets/ next to it)
+build\CaliforniaSpeedRecompiled.exe
+```
+The launcher (RecompFrontend) opens; choose "Select ROM" and pick `California Speed (USA).z64`
+(the runtime checks its XXH3 hash against `src/main/main.cpp`), then start the game.
+Settings and saves live under `%LOCALAPPDATA%/CaliforniaSpeedRecompiled`.
+Expect crashes or glitches on first runs: nothing game-specific has been debugged yet. When it
+fails, the usual loop is: find the recompiled function in `RecompiledFuncs/` (names come from
+`symbols/functions.json`), inspect it in Binary Ninja, and either fix the symbol list or add a patch.
+
 ## References
 - https://github.com/N64Recomp/N64Recomp
 - https://github.com/N64Recomp/N64ModernRuntime
