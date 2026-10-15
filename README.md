@@ -65,6 +65,12 @@ how function boundaries and names are produced, and the debugging workflow.
   and fixes for timing-dependent game behavior (`game_fixes.cpp`).
 - `patches/` is for game code rewritten in C and compiled for MIPS (needs a mips-elf toolchain).
 
+## License
+
+This project's code is licensed under the GNU General Public License v3.0; see [COPYING](COPYING).
+The libraries in `lib/` keep their own licenses. California Speed itself is not covered by this
+license and is not included.
+
 ## Credits
 
 - [N64Recomp](https://github.com/N64Recomp/N64Recomp), [N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime)
