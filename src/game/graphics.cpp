@@ -341,6 +341,44 @@ void widen_full_width_fills(uint8_t* rdram) {
     }
 }
 
+// The sky is a translucent cloud dome (vertices rebuilt every frame in one of two buffers) drawn
+// right after the depth buffer is cleared, with depth compare on. Through RT64 the dome fails that
+// depth test (the game uses the F3DEX2.NoN microcode, without near clipping), so the sky showed as
+// the flat fill colour, except for stray patches of cloud at the edges of a widened view. Nothing
+// is in the depth buffer yet when the dome is drawn, so the compare is turned off for it.
+constexpr uint32_t SKY_DOME_VTX_A = 0x8013AC70;
+constexpr uint32_t SKY_DOME_VTX_B = 0x80134870;
+constexpr uint32_t SKY_DOME_VTX_SIZE = 0x580;    // 8 triangles and 16 quads
+constexpr uint32_t G_SETOTHERMODE_L_RENDERMODE = 0xE200001C;
+constexpr uint32_t Z_CMP = 0x10;
+
+bool is_sky_dome_vertex(uint32_t addr) {
+    return (addr >= SKY_DOME_VTX_A && addr < SKY_DOME_VTX_A + SKY_DOME_VTX_SIZE) ||
+           (addr >= SKY_DOME_VTX_B && addr < SKY_DOME_VTX_B + SKY_DOME_VTX_SIZE);
+}
+
+void show_sky_dome(uint8_t* rdram, uint32_t dl) {
+    uint32_t render_mode = 0;
+    for (int i = 0; i < 400; i++, dl += 8) {
+        gpr cmd = (gpr)(int32_t)dl;
+        uint32_t w0 = (uint32_t)MEM_W(0, cmd);
+        uint32_t w1 = (uint32_t)MEM_W(4, cmd);
+        uint32_t op = w0 >> 24;
+        if (op == 0xDF) {
+            return;
+        }
+        if (w0 == G_SETOTHERMODE_L_RENDERMODE) {
+            render_mode = dl;
+        } else if (op == 0x01 && is_sky_dome_vertex(w1)) {
+            if (render_mode != 0) {
+                gpr rm = (gpr)(int32_t)render_mode;
+                MEM_W(4, rm) = (int32_t)((uint32_t)MEM_W(4, rm) & ~Z_CMP);
+            }
+            return;
+        }
+    }
+}
+
 // Finds the needle's vertex load in the frame's top-level display list: "4 vertices" after the needle
 // colour, followed by its triangles. Returns the address of the vertex load (0 if not found) and
 // the triangles' address in *tri.
@@ -425,6 +463,7 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     if ((dl & 0xFF000000) != 0x80000000) {
         return;
     }
+    show_sky_dome(rdram, dl);
     remove_borders(rdram, dl);
     widen_full_width_fills(rdram);
     uint32_t tri = 0;

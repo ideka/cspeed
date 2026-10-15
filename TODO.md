@@ -5,16 +5,6 @@ far. Newest findings go into the item they belong to.
 
 ## Graphics
 
-### Skybox blinks in the top-left corner (widescreen races) — high priority
-- On Monterey, right after the first curve, the sky in the top-left corner of the screen blinks.
-  Only with the Expand aspect ratio.
-- Suspects, all in `src/game/graphics.cpp`: `remove_borders` (removes the black border strips and
-  extends the sky/ground colour fills to the screen edges; it only looks at the first 64 commands
-  and matches exact coordinates, so a frame where the setup differs would keep the black strips or
-  the 10-pixel gap), or the opened camera scissor showing area outside the sky geometry. Comparing
-  the frame's setup commands between a good and a blinking frame should tell.
-- Hard to reproduce with scripted input: the car has to get through the first curve.
-
 ### Frame interpolation jitter (high framerate only)
 - **Speedometer needle** shakes left-right while turning.
 - **Tire tracks / skid marks** on the ground show the same shaking.
