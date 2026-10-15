@@ -55,6 +55,9 @@ far. Newest findings go into the item they belong to.
   empty `patches.elf`), then build a first real patch. This unblocks the graphics items above.
 
 ### Submodule patches
-- `tools/runtime_patches/` holds fixes applied to submodules by hand (`git -C lib/<module> apply ...`):
-  0001 (N64ModernRuntime: osStopThread on other threads), 0002 (RecompFrontend: F11/Alt+Enter fullscreen
-  toggle is saved). They should become forks or upstream PRs.
+- `lib/N64ModernRuntime` tracks the `cspeed` branch of the
+  [ideka/N64ModernRuntime](https://github.com/ideka/N64ModernRuntime) fork (osStopThread on other
+  threads). Worth sending upstream as a PR.
+- `tools/runtime_patches/0002-*.patch` (RecompFrontend: F11/Alt+Enter fullscreen toggle is saved) is
+  still applied by hand (`git -C lib/RecompFrontend apply ../../tools/runtime_patches/0002-*.patch`);
+  move it to a fork or upstream PR too.
