@@ -36,35 +36,6 @@ far. Newest findings go into the item they belong to.
   seen yet.
 - Split-screen (2 players) has not been checked in widescreen.
 
-## Stability
-
-### Hang or crash after backing out of track select (RT64)
-- Race -> Practice -> track select (Monterey) -> Back: the menu slides out and never returns; quitting
-  then hangs. Timing dependent (reproduced most runs with CSPEED_INPUT_SCRIPT="10:S,12:S,16:A,20:A,24:D,26:A,31:B").
-- The game is fine; frames stop because RT64 never finishes the frame: the runtime's gfx thread spins
-  in `PresentQueue::advanceToNextPresent` (lib/rt64/src/hle/rt64_present_queue.cpp) waiting for
-  the present barrier, while RT64's present thread waits for new writes. Some runs instead crash with
-  heap corruption (c0000374) while RT64 frees its interpolation map (`GameFrameMap::clear` in
-  `GameFrame::set`), so something corrupts RT64's state first.
-- Ruled out: widescreen code, the per-frame extended GBI prologue, frame interpolation (refresh rate
-  Original), presentation mode (SkipBuffering), and the ROM lock change (original try-lock crashes
-  here too).
-- Next: run RT64 with debug checks (heap verification / ASan) to find the corruption; compare with
-  upstream RT64 (24 commits newer, none touch the present queue).
-
-### Remove level of detail (LoD)
-- Distant objects and scenery switch to lower-detail models or pop in at a set distance. At modern
-  resolutions this is very visible; look into forcing the highest detail model and raising or removing
-  the draw distance cutoff. Needs the game's LoD selection and culling code identified.
-
-## Audio
-
-### Improve music quality
-- Explore whether the music can sound better than the original output: e.g. a higher output sample
-  rate, better resampling/interpolation in the audio path, or the game's own audio settings (sample
-  rate, voice count) set to higher values. Start by identifying the music player (see
-  `musicLoaderThread` / `musicLoadRequest` in `symbols/functions.json`) and the audio format it uses.
-
 ## Gameplay
 
 ### More precise steering
