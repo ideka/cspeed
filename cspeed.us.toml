@@ -110,7 +110,7 @@ before_vram = 0x80055380
 
 # Frame rate: the scheduler only swaps buffers once at least 2 retraces have passed since the last
 # swap (when a frame's task completes, otherwise later from the retrace handler), capping the game at
-# 30 FPS. Both checks are recomputed with a minimum of 1 retrace (see src/game/framerate.cpp).
+# 30 FPS. Both checks are recomputed to allow 60 FPS in races (see src/game/framerate.cpp).
 [[patches.hook]]
 func = "__scTaskComplete"
 text = "{ int cspeed_swap_too_soon(uint8_t*, recomp_context*); ctx->r2 = cspeed_swap_too_soon(rdram, ctx); }"
