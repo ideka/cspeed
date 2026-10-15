@@ -3,7 +3,8 @@
 	url = https://github.com/N64Recomp/N64Recomp.git
 [submodule "lib/N64ModernRuntime"]
 	path = lib/N64ModernRuntime
-	url = https://github.com/N64Recomp/N64ModernRuntime
+	url = https://github.com/ideka/N64ModernRuntime
+	branch = cspeed
 [submodule "lib/RecompFrontend"]
 	path = lib/RecompFrontend
 	url = https://github.com/N64Recomp/RecompFrontend

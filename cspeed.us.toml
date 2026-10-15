@@ -18,3 +18,28 @@ stubs = []
 # Controller Pak internals only reached from osPfs* (which the runtime reimplements); they call
 # __osContRamRead/__osContRamWrite/__osPfsSelectBank, which N64Recomp ignores, so skip them too.
 ignored = ["__osPfsClearPage", "__osPfsSumPage", "__osPfsDeclearPage", "__osPfsReleasePages"]
+
+# The idle thread (0x80000518) ends in `j .` at 0x800005C0. Spinning forever would starve the
+# runtime's cooperative scheduler ("No threads left to run!"), so pause the thread instead.
+[[patches.hook]]
+func = "idle"
+text = "pause_self(rdram);"
+before_vram = 0x800005C0
+
+# Busy-wait loops polling the halfword at 0x80001400 (cleared by the scheduler thread when the
+# RSP/RDP task finishes). Yield inside them so the other threads can run.
+[[patches.hook]]
+func = "func_8008C024"
+text = "yield_self(rdram);"
+before_vram = 0x8008C05C
+
+[[patches.hook]]
+func = "func_8008C16C"
+text = "yield_self(rdram);"
+before_vram = 0x8008C184
+
+[[patches.hook]]
+func = "func_8008C444"
+text = "yield_self(rdram);"
+before_vram = 0x8008C498
+

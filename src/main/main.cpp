@@ -601,6 +601,11 @@ void on_launcher_init(recompui::LauncherMenu *menu) {
 #define REGISTER_FUNC(name) recomp::overlays::register_base_export(#name, name)
 
 int main(int argc, char** argv) {
+    // Debug aid: keep stdout/stderr unbuffered so traces survive a crash (set CSPEED_UNBUFFERED=1).
+    if (getenv("CSPEED_UNBUFFERED")) {
+        setvbuf(stdout, nullptr, _IONBF, 0);
+        setvbuf(stderr, nullptr, _IONBF, 0);
+    }
     (void)argc;
     (void)argv;
     recomp::Version project_version{};
