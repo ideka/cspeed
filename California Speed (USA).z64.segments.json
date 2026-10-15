@@ -1,0 +1,10 @@
+[
+  {
+    "name": "main",
+    "rom": "0x2CD60",
+    "vram": "0x80063710",
+    "size": "0x79F10",
+    "bss_size": "0x929E0",
+    "_comment": "ROM 0x2CD60..0xA6C70 loads directly after the boot BSS (vram - rom = 0x800369B0, derived by matching jal targets to function prologues). Last code at ~0x800D20A0, data to 0x800DD620, then BSS. bss_size is an estimate reaching ~0x80170000; refine once the game's DMA/segment table is found."
+  }
+]

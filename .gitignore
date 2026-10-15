@@ -1,0 +1,33 @@
+# ROMs and anything derived from them must never be committed
+*.z64
+*.n64
+*.v64
+*.rom
+*.bin
+
+# Binary Ninja databases (large, binary; keep local)
+*.bndb
+*.bndb.lock
+
+# Scratch disassembly / experiments
+scratch/
+
+# Build output
+build/
+build-cmake/
+out/
+RecompiledFuncs/
+*.exe
+*.obj
+*.pdb
+*.ilk
+
+# Editors / OS
+.vs/
+.vscode/
+.idea/
+Thumbs.db
+Desktop.ini
+.DS_Store
+__pycache__/
+*.pyc
