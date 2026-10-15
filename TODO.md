@@ -10,10 +10,16 @@ far. Newest findings go into the item they belong to.
   interpolation off at the original refresh rate. These glitches were seen with interpolation (30 FPS
   game) and are gone at native 60; they may still show with a refresh rate above 60:
   - **Speedometer needle** and **tire tracks / skid marks** shaking while turning.
-  - The **Midway word** briefly appearing off to the side before an animation at startup. Still
-    happens with races at 60 (menus are 30 FPS and still interpolate above 30). Not on the static
-    logo/copyright screen (game mode 15): disabling interpolation there changed nothing, and a 10x
-    slowed-down capture of that screen showed no flash. Need to pin down which screen it is.
+  - The **Midway word** flashing for about a frame at startup, in the intro after the copyright
+    screen (game modes 18 then 17): after the red logo assembles and before the word's horizontal
+    reveal, part of the word shows in pale yellow far to the right (outside the 4:3 area, so only in
+    widescreen). Captured by slowing the VI rate to 12 Hz (a local change to the runtime's VI
+    thread) with a 16:9 window. The game's display lists draw nothing there (no rectangles past
+    x=320, only the usual two framebuffers, normal scissors), so RT64 is presenting something else
+    for that frame. Declaring a 1000 Hz refresh rate for those frames (no in-between frames) made it
+    worse: the finished logo + word then blinked in during the assembly, i.e. RT64 sometimes
+    presents a framebuffer the game is not showing. Look at how the present queue picks the image
+    (`PresentQueue::threadPresent`, present-early / interpolation target selection).
 - Cause: RT64's interpolation pairs the wrong matrices or vertices between frames for these objects.
   The usual fix is tagging their matrices (extended GBI `gEXMatrixGroup*`) or marking them as
   non-interpolated; `src/game/graphics.cpp` already enables the extended GBI for every frame.
