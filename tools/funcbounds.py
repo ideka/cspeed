@@ -357,7 +357,7 @@ def compute(A, text_end=None):
         for a, f in A.feat.items():
             if real(a):
                 jal_tgts.update(t for t in f["callees"] if A.seg_of(t) and t < text_end[A.seg_of(t)[0]])
-                jal_tgts.update(t for t in f["consts"] if A.seg_of(t) and t < text_end[A.seg_of(t)[0]]
+                jal_tgts.update(t for t in f["ptrs"] if A.seg_of(t) and t < text_end[A.seg_of(t)[0]]
                                 and t % 4 == 0 and A.word(t) != 0)
         covered = [(s_, e_) for s_, e_, _ in funcs if s_ not in junk]
         jal_tgts |= pointer_seeds(A, text_end, covered)
@@ -542,7 +542,7 @@ def anchors(A, seeds, refs_from=None):
         if refs_from is not None and not (A.seg_of(a) and refs_from(a)):
             continue
         anc.update(t for t in f["callees"] if t in sset)
-        anc.update(c for c in f["consts"] if c in sset)
+        anc.update(c for c in f["ptrs"] if c in sset)
     n = len(A.rom) // 4
     A.weak = {w for w in struct.unpack(">%dI" % n, A.rom[:n * 4]) if w in sset}
     return anc

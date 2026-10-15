@@ -42,7 +42,7 @@ def main():
         tend = A.text_end[name]
         fs = [f for f in funcs if vstart <= f[0] < tend]
         lines += ["[[section]]",
-                  'name = ".text.%s"' % name,
+                  'name = "%s_text"' % name,
                   "rom = 0x%08X" % rstart,
                   "vram = 0x%08X" % vstart,
                   "size = 0x%X" % (tend - vstart),
@@ -61,11 +61,11 @@ def main():
     bss = {"boot": (0x8001C160, 0x80053710), "main": (0x800DD620, 0x80170000)}
     for name, vstart, vend, rstart in segs:
         tend = A.text_end[name]
-        dlines += ["[[section]]", 'name = ".data.%s"' % name, "rom = 0x%08X" % (rstart + (tend - vstart)),
+        dlines += ["[[section]]", 'name = "%s_data"' % name, "rom = 0x%08X" % (rstart + (tend - vstart)),
                    "vram = 0x%08X" % tend, "size = 0x%X" % (vend - tend), "symbols = []", ""]
         if name in bss:
             b0, b1 = bss[name]
-            dlines += ["[[section]]", 'name = ".bss.%s"' % name, "vram = 0x%08X" % b0,
+            dlines += ["[[section]]", 'name = "%s_bss"' % name, "vram = 0x%08X" % b0,
                        "size = 0x%X" % (b1 - b0), "symbols = []", ""]
     dout = os.path.join(ROOT, "cspeed.us.datasyms.toml")
     open(dout, "w", encoding="utf-8", newline="\n").write("\n".join(dlines))

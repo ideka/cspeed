@@ -49,6 +49,13 @@ if (RECOMP_FLATPAK)
     add_compile_definitions(RECOMP_FLATPAK)
 endif()
 
+if (MSVC AND CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    # The SDL2 2.26 headers bundled with RT64 define _m_prefetch, which newer clang-cl
+    # treats as a builtin ("definition of builtin function"). Pre-define clang's own
+    # prfchwintrin.h guard so SDL_endian.h skips that definition.
+    add_compile_definitions(__PRFCHWINTRIN_H)
+endif()
+
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/rt64 ${CMAKE_BINARY_DIR}/rt64)
 
 set(BUILD_SHARED_LIBS OFF)
@@ -155,6 +162,15 @@ set (SOURCES
 
     ${CMAKE_SOURCE_DIR}/rsp/aspMain.cpp
 )
+
+# The recompiled RSP microcode uses SSE4.1/SSSE3 intrinsics (librecomp/rsp_vu_impl.hpp).
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+    if (MSVC)
+        set_source_files_properties(${CMAKE_SOURCE_DIR}/rsp/aspMain.cpp PROPERTIES COMPILE_OPTIONS "/clang:-msse4.1;/clang:-mssse3")
+    else()
+        set_source_files_properties(${CMAKE_SOURCE_DIR}/rsp/aspMain.cpp PROPERTIES COMPILE_OPTIONS "-msse4.1;-mssse3")
+    endif()
+endif()
 
 target_include_directories(CaliforniaSpeedRecompiled PRIVATE
     ${CMAKE_SOURCE_DIR}/include

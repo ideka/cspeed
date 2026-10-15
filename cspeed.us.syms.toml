@@ -2,7 +2,7 @@
 # Function names come from symbols/functions.json; extents from tools/funcbounds.py.
 
 [[section]]
-name = ".text.boot"
+name = "boot_text"
 rom = 0x00001000
 vram = 0x80000400
 size = 0x14F30
@@ -243,7 +243,7 @@ functions = [
     { name = "func_8000E130", vram = 0x8000E130, size = 0x14 },
     { name = "osSyncPrintf", vram = 0x8000E144, size = 0x1C },
     { name = "sqrtf", vram = 0x8000E160, size = 0x10 },
-    { name = "func_8000E178", vram = 0x8000E178, size = 0x8 },
+    { name = "__osExceptionPreamble", vram = 0x8000E170, size = 0x10 },
     { name = "__osException", vram = 0x8000E180, size = 0x564 },
     { name = "send_mesg", vram = 0x8000E6E4, size = 0xBC },
     { name = "handle_CpU", vram = 0x8000E7A0, size = 0x34 },
@@ -364,7 +364,7 @@ functions = [
 ]
 
 [[section]]
-name = ".text.main"
+name = "main_text"
 rom = 0x0001CD60
 vram = 0x80053710
 size = 0x7E988
@@ -608,6 +608,7 @@ functions = [
     { name = "func_80068CB0", vram = 0x80068CB0, size = 0x30 },
     { name = "func_80068CE0", vram = 0x80068CE0, size = 0x28 },
     { name = "func_80068D08", vram = 0x80068D08, size = 0xC },
+    { name = "func_80068D20", vram = 0x80068D20, size = 0xB0 },
     { name = "func_80068DD0", vram = 0x80068DD0, size = 0x8 },
     { name = "func_80069E10", vram = 0x80069E10, size = 0x1C },
     { name = "func_80069E2C", vram = 0x80069E2C, size = 0x58 },

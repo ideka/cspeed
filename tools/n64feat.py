@@ -90,7 +90,7 @@ class Analysis:
         n = self.sizes[a] // 4
         w = self.words(a, n)
         f = dict(addr=a, size=self.sizes[a], ninstr=n, cop0=set(), cache=set(), special=set(),
-                 hw=set(), consts=set(), imm16=set(), callees=[], strings=set(), fpu=set(),
+                 hw=set(), consts=set(), ptrs=set(), imm16=set(), callees=[], strings=set(), fpu=set(),
                  jr_reg=False, words=w)
         hi = {}            # reg -> value from lui (or lui+addiu base)
         for x in w:
@@ -145,6 +145,8 @@ class Analysis:
                     f["hw"].add(v)
                 else:
                     f["consts"].add(v)
+                    if op in (0x09, 0x0D):
+                        f["ptrs"].add(v)
                     if 0x80000000 <= v < 0x80400000:
                         s = self.string_at(v)
                         if s:
