@@ -66,19 +66,22 @@ bool expand_enabled() {
     return ultramodern::renderer::get_graphics_config().ar_option == ultramodern::renderer::AspectRatio::Expand;
 }
 
-// Widescreen only applies to the race view (the race itself and the results shown over it). Menus
-// combine a 4:3 background image with 3D objects that slide in from outside the 4:3 area, which a
-// wider view would reveal. The game mode at 0x80141E00 is 1 in races but also in the race setup
-// menus, so the race view is recognised by the previous frame (see cspeed_widescreen_frame_submit):
-// it fills the 3D area with the track's sky colour, where the menus fill it with black. The race
-// HUD is recognised by the speedometer needle.
+// Widescreen only applies to the race view (from the countdown to the results shown over the race).
+// Menus combine a 4:3 background image with 3D objects that slide in from outside the 4:3 area,
+// which a wider view would reveal. The game mode at 0x80141E00 is 1 in races but also in the race
+// setup menus; the game's state at 0x8016D928 (read by the main loop, func_80093014) tells them
+// apart: 0 menus, 1-2 loading, 10 countdown, 3 racing, 5 race over, 6 results. The race HUD is
+// recognised by the speedometer needle having been drawn in the previous frame.
 constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;
 constexpr int32_t GAME_MODE_RACE = 1;
-bool race_view_last_frame = false;
+constexpr gpr GAME_STATE = (gpr)(int32_t)0x8016D928;
+constexpr int32_t GAME_STATE_RACE_FIRST = 3;   // states 3..10 show the race view
+constexpr int32_t GAME_STATE_RACE_LAST = 10;
 bool needle_drawn_last_frame = false;
 
 bool in_race_view(uint8_t* rdram) {
-    return MEM_W(0, GAME_MODE) == GAME_MODE_RACE && race_view_last_frame;
+    int32_t state = MEM_W(0, GAME_STATE);
+    return MEM_W(0, GAME_MODE) == GAME_MODE_RACE && state >= GAME_STATE_RACE_FIRST && state <= GAME_STATE_RACE_LAST;
 }
 
 bool in_race(uint8_t* rdram) {
@@ -264,26 +267,6 @@ constexpr uint32_t NEEDLE_DL_BASE = PROLOGUE_BASE + 0x1000;   // one list per pr
 constexpr uint32_t NEEDLE_DL_SIZE = 128;
 constexpr gpr VIEWPORTS = (gpr)(int32_t)0x80022FB0;            // pointer to this frame's Vp array
 
-// The frame setup fills the 3D area's sky (10..120) and ground (120..229) with a colour before
-// drawing: the track's sky colour in the race view, black in menus.
-bool has_sky_fill(uint8_t* rdram, uint32_t dl) {
-    uint32_t color = 0;
-    for (int i = 0; i < 64; i++, dl += 8) {
-        uint32_t w0 = (uint32_t)MEM_W(0, (gpr)(int32_t)dl);
-        uint32_t w1 = (uint32_t)MEM_W(4, (gpr)(int32_t)dl);
-        uint32_t op = w0 >> 24;
-        if (op == 0xDA || op == 0x01 || op == 0xDF) {
-            break;
-        }
-        if (op == 0xF7) {
-            color = w1;
-        } else if (op == 0xF6 && (w0 & 0xFFF) == 120 * 4 && (w1 & 0xFFF) == 10 * 4) {
-            return (color & 0xFFFEFFFE) != 0;   // ignore the alpha bits of the 16-bit fill colour
-        }
-    }
-    return false;
-}
-
 void remove_borders(uint8_t* rdram, uint32_t dl) {
     // The borders come within the first few dozen commands, before any geometry: narrow full-height
     // strips at the sides and short full-width strips at the top and bottom. They are removed so the
@@ -429,9 +412,8 @@ constexpr float OVERSCAN_CROP = 1.0f / 24.0f;
 
 extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
     RT64::VI::setOverscanCrop(OVERSCAN_CROP);
-    race_view_last_frame = false;
     needle_drawn_last_frame = false;
-    if (MEM_W(0, GAME_MODE) != GAME_MODE_RACE) {
+    if (!in_race_view(rdram)) {
         return;
     }
     // The task points at our prologue; the game's display list is the target of its branch.
@@ -441,10 +423,6 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     }
     uint32_t dl = (uint32_t)MEM_W(0xC, (gpr)(int32_t)prologue);
     if ((dl & 0xFF000000) != 0x80000000) {
-        return;
-    }
-    race_view_last_frame = has_sky_fill(rdram, dl);
-    if (!race_view_last_frame) {
         return;
     }
     remove_borders(rdram, dl);
