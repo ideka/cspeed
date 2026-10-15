@@ -1,5 +1,6 @@
 RAMBASE  = 0x80801000; /* Used to hold any new symbols */
-PATCH_RAM_END = 0x81000000; /* Amount of extra ram allocated by recomp */
+PATCH_RAM_END = 0x80FF0000; /* Extra ram allocated by recomp ends at 0x81000000; the last 64 KiB
+                               are reserved for native code (src/game/graphics.cpp display list prologues) */
 
 MEMORY {
     extram : ORIGIN = RAMBASE, LENGTH = 64M

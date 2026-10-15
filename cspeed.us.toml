@@ -70,8 +70,32 @@ before_vram = 0x800A9BC8
 
 
 # Widescreen: open the 3D camera's scissor to the full width when "Expand" is selected, so RT64
-# widens the scene (see src/game/widescreen.cpp).
+# widens the scene (see src/game/graphics.cpp).
 [[patches.hook]]
 func = "func_800CF0B4"
 text = "{ void cspeed_widescreen_camera_scissor(uint8_t*, recomp_context*); cspeed_widescreen_camera_scissor(rdram, ctx); }"
 before_vram = 0x800CF338
+
+# Enable RT64's extended GBI for every graphics task: point the task at a small prologue display list
+# (gEXEnable + branch to the game's list). See src/game/graphics.cpp.
+[[patches.hook]]
+func = "func_80055168"
+text = "{ void cspeed_gfx_task_prologue(uint8_t*, recomp_context*); cspeed_gfx_task_prologue(rdram, ctx); }"
+before_vram = 0x800551F8
+
+# HUD placement: anchor race HUD sprites and fill rectangles to the screen side they sit on, and give
+# the 2D display list a full-width scissor (see src/game/graphics.cpp).
+[[patches.hook]]
+func = "func_8005CCC4"
+text = "{ void cspeed_hud_sprite_align(uint8_t*, recomp_context*); cspeed_hud_sprite_align(rdram, ctx); }"
+before_vram = 0x8005CCC4
+
+[[patches.hook]]
+func = "func_8005C718"
+text = "{ void cspeed_hud_sprite_align(uint8_t*, recomp_context*); cspeed_hud_sprite_align(rdram, ctx); }"
+before_vram = 0x8005C718
+
+[[patches.hook]]
+func = "func_8005A0D8"
+text = "{ void cspeed_hud_begin(uint8_t*, recomp_context*); cspeed_hud_begin(rdram, ctx); }"
+before_vram = 0x8005A21C
