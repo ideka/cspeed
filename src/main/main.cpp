@@ -164,6 +164,13 @@ ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::
     flags |= SDL_WINDOW_VULKAN;
 #endif
 
+    // Debug aid: with CSPEED_BACKGROUND=1 the window opens without taking focus and behind other
+    // windows, so scripted test runs don't interrupt whoever is using the desktop.
+    const bool background = getenv("CSPEED_BACKGROUND") != nullptr;
+    if (background) {
+        SDL_SetHint(SDL_HINT_WINDOW_NO_ACTIVATION_WHEN_SHOWN, "1");
+    }
+
     window = SDL_CreateWindow("California Speed: Recompiled", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 1600, 900,  flags);
 
     if (window == nullptr) {
@@ -184,6 +191,9 @@ ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::
 #endif
 
 #if defined(_WIN32)
+    if (background) {
+        SetWindowPos(wmInfo.info.win.window, HWND_BOTTOM, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+    }
     return ultramodern::renderer::WindowHandle{ wmInfo.info.win.window, GetCurrentThreadId() };
 #elif defined(__linux__) || defined(__ANDROID__)
     return ultramodern::renderer::WindowHandle{ window };
