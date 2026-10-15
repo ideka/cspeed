@@ -1,0 +1,16 @@
+# RSPRecomp config for the audio microcode (aspMain) of California Speed (USA).
+# Found via the audio OSTask setup at 0x800577C0: ucode = 0x80015400 (ROM 0x16000),
+# ucode_data = 0x8001B140 (ROM 0x1BD40, 0x800 bytes). The gfx ucode (F3DEX.NoN fifo 2.04)
+# starts right after at 0x80016220, so the audio text is 0xE20 bytes.
+# Usage (repo root):  N64Recomp\build\RSPRecomp.exe aspMain.us.toml
+text_offset = 0x16000
+text_size = 0xE20
+text_address = 0x04001080
+rom_file_path = "California Speed (USA).z64"
+output_file_path = "rsp/aspMain.cpp"
+output_function_name = "aspMain"
+extra_indirect_branch_targets = [
+    # command dispatch table at ucode_data + 0x10 (16 audio commands)
+    0x1118, 0x1470, 0x11DC, 0x1B38, 0x1214, 0x187C, 0x1254, 0x12D0,
+    0x12EC, 0x1328, 0x140C, 0x1294, 0x1E24, 0x138C, 0x170C, 0x144C,
+]
