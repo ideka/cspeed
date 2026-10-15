@@ -5,25 +5,32 @@ far. Newest findings go into the item they belong to.
 
 ## Graphics
 
-### Frame interpolation jitter (high framerate only)
+### Frame interpolation jitter (above 60 FPS only)
+- The game now runs at 60 FPS itself (`src/game/framerate.cpp`), so RT64's frame interpolation is
+  only used with a refresh rate above 60. The reports below were made at 30 FPS + interpolation;
+  recheck them above 60.
 - **Speedometer needle** shakes left-right while turning.
 - **Tire tracks / skid marks** on the ground show the same shaking.
-- Neither happens at the original framerate, so the game is fine; RT64's interpolation is pairing
+- Neither happens without interpolation, so the game is fine; RT64's interpolation is pairing
   the wrong matrices or vertices between frames for these objects. The usual fix is a patch that
   tags their matrices (extended GBI `gEXMatrixGroup*`) or marks them as non-interpolated.
 - Next: find where the needle and the skid marks are drawn (the needle is a 3D object in the main
   scene, not part of the 2D HUD list) and tag them; `src/game/graphics.cpp` already enables the
   extended GBI for every frame.
 
-### Run the game at 60 FPS natively
-- The game runs at 30 FPS and RT64's frame interpolation fills in the rest, which causes the jitter
-  above. Try making the game itself run at 60 FPS (VI retrace count / frame pacing, and whatever
-  game logic is tied to the frame rate), so interpolation is only needed above 60.
+### 60 FPS: things to check
+- The game logic is timed by retraces, and a race clock checked against real time runs at the right
+  speed at 60 FPS. Not yet checked: menus and attract-mode animations, AI and physics feel over a
+  whole race, split-screen, and whether some effects are tied to frames rather than time.
+- Frames that take longer than one retrace to produce simply fall back to 30 for that frame (the
+  game measures the elapsed retraces), so slow moments should not change the game speed.
+- Possibly make the frame rate an option (original 30 / 60).
 
 ### Midway logo flashes before animating in
 - On the startup screen, the Midway word briefly appears off to the side for a moment before its
   animation starts. Does not happen at the original framerate, so it is the same interpolation issue
-  as above (the first frame of the animation is interpolated from a stale position).
+  as above (the first frame of the animation is interpolated from a stale position). Recheck above
+  60 FPS now that the game itself runs at 60.
 
 ### Widescreen: remaining gaps
 - The race view (countdown, race, race over, results) widens; during the race the 2D HUD, the
