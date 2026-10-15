@@ -1,6 +1,6 @@
 """Create a minimal, empty MIPS ELF so N64Recomp's patch pipeline runs without a MIPS compiler.
 
-Used until a MIPS-capable clang is installed (the LLVM 21 on this machine has no Mips target).
+Used by patches/Makefile when no MIPS-capable compiler is available, so the build still works without patches.
 Produces patches/patches.elf with empty .text/.recomp_patch/.recomp_export/.recomp_event/.data
 sections at the patch RAM base and an empty symbol table.
 """

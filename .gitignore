@@ -81,3 +81,6 @@ scratch/
 vcpkg_installed/
 x64/
 x86/
+
+# Machine-specific build settings (see tools/build_env.bat)
+build_env.local.bat

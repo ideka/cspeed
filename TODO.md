@@ -11,18 +11,24 @@ far. Newest findings go into the item they belong to.
 - Neither happens at the original framerate, so the game is fine; RT64's interpolation is pairing
   the wrong matrices or vertices between frames for these objects. The usual fix is a patch that
   tags their matrices (extended GBI `gEXMatrixGroup*`) or marks them as non-interpolated.
-- Needs: MIPS patch toolchain (see below), then find where the needle and the skid marks are drawn.
+- Next: find where the needle and the skid marks are drawn (the needle is a 3D object in the main
+  scene, not part of the 2D HUD list) and tag them; `src/game/graphics.cpp` already enables the
+  extended GBI for every frame.
 
 ### Midway logo flashes before animating in
 - On the startup screen, the Midway word briefly appears off to the side for a moment before its
   animation starts. Does not happen at the original framerate, so it is the same interpolation issue
   as above (the first frame of the animation is interpolated from a stale position).
 
-### Widescreen ("Expand" aspect ratio) and HUD placement
-- "Expand" only draws extra bars on the sides; the camera view is not widened.
-- The HUD placement option has no effect.
-- Both need game patches: widen the projection and the view/scissor for the 3D scene, and tag the
-  HUD's 2D drawing with extended GBI viewport/alignment commands so RT64 knows what to move.
+### Widescreen: remaining gaps
+- Races widen and the 2D HUD is anchored to the screen edges (`src/game/graphics.cpp`). The
+  speedometer **needle** is a 3D object placed in front of the camera, so it stays at its 4:3
+  position while the dial moves to the right edge. It needs its draw bracketed with an extended
+  viewport origin (gEXSetViewportAlign/gEXViewport, RIGHT) once the drawing code is found.
+- Menus stay 4:3 on purpose (4:3 background art; 3D objects slide in from outside the 4:3 area).
+- Objects may pop in/out at the widened screen edges if the game culls against a 4:3 frustum; not
+  seen yet.
+- Split-screen (2 players) has not been checked in widescreen.
 
 ## Gameplay
 
@@ -44,14 +50,6 @@ far. Newest findings go into the item they belong to.
   an attract-mode demo was playing in the background. Did not happen again.
 
 ## Infrastructure
-
-### MIPS patch toolchain
-- A mips-elf GCC 16.2 + binutils 2.47 toolchain is installed in Cygwin at
-  `%MIPS_TOOLCHAIN_BIN%` (needs `%MIPS_TOOLCHAIN_DLL_DIR%` on PATH for the Cygwin DLLs).
-  Verified: `mips-elf-gcc -march=vr4300 -mabi=32 -mfix4300 -G0 -mno-abicalls -fno-pic -O2` builds
-  correct VR4300 code.
-- Still to do: point `patches/Makefile` at it (it currently expects clang/ld.lld and falls back to an
-  empty `patches.elf`), then build a first real patch. This unblocks the graphics items above.
 
 ### Submodule patches
 - `lib/N64ModernRuntime` tracks the `cspeed` branch of the

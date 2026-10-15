@@ -1,207 +1,162 @@
-# California Speed (N64) Recomp — Getting Started
+# California Speed: Recompiled — developer guide
 
-## What a "recomp" is, in one paragraph
-N64: Recompiled (Mr-Wiseguy's N64Recomp) statically translates every MIPS function in the ROM
-into C, then links that C against a modern runtime (N64ModernRuntime = `ultramodern` + `librecomp`)
-and the RT64 renderer. The output is a native Windows/Linux executable that still loads the
-original ROM at runtime for assets. No emulator is involved.
+How the port is put together, how to build it, and what has been learned about the game. For known
+issues and planned work see [TODO.md](TODO.md).
+
+## What a "recomp" is
+[N64Recomp](https://github.com/N64Recomp/N64Recomp) statically translates every MIPS function in the
+ROM into C, which is linked against a modern runtime
+([N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime): `ultramodern` + `librecomp`), the
+[RT64](https://github.com/rt64/rt64) renderer and the
+[RecompFrontend](https://github.com/N64Recomp/RecompFrontend) launcher/UI. The result is a native
+executable that still reads the original ROM at runtime for its assets. No emulator is involved.
+The project started from [N64RecompGameTemplate](https://github.com/SrBananaMan/N64RecompGameTemplate).
 
 ## The ROM
 | Item | Value |
 |---|---|
-| Converted file | `California Speed (USA).z64` (big-endian, 16 MiB) — use this one |
+| File | `California Speed (USA).z64` (big-endian, 16 MiB); convert `.n64`/`.v64` dumps first |
 | Internal name / game code | `CAL SPEED` / `NCLE`, version 0 |
 | CIC | 6102 |
 | Entry point | `0x80000400` (ROM offset `0x1000`) |
-| BSS clear in boot | `0x8001C160`, length `0x375B0` → text+data = ROM `0x1000`..`0x1CD60` |
-| Graphics microcode | `RSP Gfx ucode F3DEX.NoN fifo 2.04` (stock Nintendo — RT64 supports it) |
-| Audio | libultra audio lib (`seqplayer.c`, `sndplayer.c`, `synthesizer.c` asserts) → stock `aspMain` RSP ucode |
-| Compiler (likely) | SGI IDO, judging from libultra assert strings — N64Recomp's best-tested input |
+| Graphics microcode | F3DEX2-style display lists (`RSP Gfx ucode F3DEX.NoN fifo 2.04`), handled by RT64 |
+| Audio | libultra audio library with the stock `aspMain` RSP microcode |
+| Compiler | SGI IDO (judging from libultra assert strings) |
 | Copyright | 1998 Atari Games / Midway Home Entertainment |
 | .z64 CRC32 / MD5 | `6f6262cb` / `965ad2fa317f0644e49a89a3219719cb` |
 
-There is **no public decompilation or disassembly** of this game (GitHub search returned nothing).
-That means the symbol list has to be produced from scratch — see "The hard part" below.
+There is no public decompilation of this game, so function boundaries and names were produced from
+scratch (see "Symbols" below).
 
-## Memory layout (worked out 2026-10-14)
+## Memory layout
 | Segment | ROM range | RAM range | Notes |
 |---|---|---|---|
 | boot | `0x1000`..`0x1CD60` | `0x80000400`..`0x8001C160` | text+data; libultra + early game code |
 | boot BSS | – | `0x8001C160`..`0x80053710` | cleared by the entry stub |
-| main | `0x1CD60`..`0xA6C70` | `0x80053710`..`0x800DD620` | loaded contiguously after boot BSS; last code ≈ `0x800D20A0`, then data |
-| main BSS | – | `0x800DD620`..~`0x80170000` | estimate from address references |
+| main | `0x1CD60`..`0xA6C70` | `0x80053710`..`0x800DD620` | loaded right after the boot BSS; code ends near `0x800D20A0`, then data |
+| main BSS | – | `0x800DD620`..~`0x80170000` | estimated from address references |
 | cart | `0x0`..`0x1000000` | `0xB0000000`.. | PI domain 1 view of the ROM |
 
-Derivation: `vram − rom = 0x800369B0` for every 128 KiB block of the second region, found by matching
-`jal` targets against `addiu sp,sp,-N` prologues (`scratch/` has the spimdisasm listing of the boot segment).
-The game-specific part lives in `California Speed (USA).z64.segments.json`; the loader reads it.
+For the main segment `vram − rom = 0x800369B0`. The layout is also described in
+`California Speed (USA).z64.segments.json`, which the Binary Ninja loader reads.
 
-## Opening the ROM in Binary Ninja
-A custom loader plugin is installed at `%APPDATA%\Binary Ninja\plugins\n64_rom_loader\__init__.py`.
-1. Restart Binary Ninja so the plugin loads (check the Log pane for "N64 ROM loader").
-2. File → Open → `California Speed (USA).z64`. The "N64 ROM" view type is picked automatically
-   (if BN asks, choose **N64 ROM**, not Raw/Mapped). Keep the `.segments.json` next to the ROM.
-3. Let analysis finish, then save as `California Speed (USA).bndb`.
-4. Plugins → MCP Server → Start (so Claude can query the database via the `binary_ninja_mcp` server).
-5. Good first checks: `entrypoint` at `0x80000400`; the function at `0x8000D024` touches `PI_STATUS_REG`
-   (that is the PI DMA path, i.e. `osPiRawStartDma`/`__osPiGetAccess` territory).
+## Requirements (Windows)
+- Visual Studio 2022 with the "Desktop development with C++" workload and "C++ CMake tools for
+  Windows" (for MSVC headers/libraries, CMake and Ninja).
+- LLVM (a recent release): `clang-cl` builds the game, `clang` builds N64Recomp.
+- Python 3 (standard library only).
+- GNU make (e.g. GnuWin32 Make) for the patch build.
+- Optional, for `patches/`: a MIPS toolchain, either a `mips-elf` GCC + binutils or a clang/lld built
+  with the Mips target. Without one the build still works; `patches/Makefile` then writes an empty
+  `patches.elf` and no patches are applied.
+- Optional: Binary Ninja, for reverse engineering (see below).
 
-The plugin maps segments, hardware-register symbols, the cartridge at `0xB0000000`, and the entry
-point. It does **not** name libultra functions; that is the next job (signature matching).
+The build scripts find Visual Studio with `vswhere` and LLVM in its default install location. Anything
+else (LLVM elsewhere, make or the MIPS toolchain not on PATH) goes in a git-ignored
+`build_env.local.bat` at the repository root; `tools/build_env.bat` lists the variables it reads
+(`LLVM_BIN`, `MAKE_BIN`, `MIPS_TOOLCHAIN_BIN`, `MIPS_TOOLCHAIN_DLL_DIR`).
 
-## Repos cloned into this folder
-- `N64Recomp/` — the recompiler itself (`N64Recomp.exe`) plus `RSPRecomp.exe` for RSP microcode.
-- (moved to the repo root, see Project layout below) SrBananaMan's template for a new game recomp. Submodules:
-  `lib/N64ModernRuntime`, `lib/rt64`, `lib/RecompFrontend`. Run
-  `python configure_game.py "California Speed" --preview` then without `--preview`,
-  and grep for `User Task:` to see what must be filled in.
-
-## Build N64Recomp — DONE (toolchain verified 2026-10-14)
-`build_n64recomp.bat` (repo root) loads the VS 2022 environment, puts LLVM and VS's Ninja on PATH, and runs
-CMake + Ninja with clang/clang++. Re-run it after pulling updates:
+## Building
 ```
-cmd /c N64Recompuild.bat
+git clone --recurse-submodules <this repository>
+build_n64recomp.bat                       # builds N64Recomp/build/N64Recomp.exe and RSPRecomp.exe
+copy N64Recomp\build\N64Recomp.exe .      # CMake runs N64Recomp from the repo root for the patch step
+copy N64Recomp\build\RSPRecomp.exe .
+rem put "California Speed (USA).z64" in the repo root, then generate the code from it:
+python tools\gen_syms.py                  # symbols -> cspeed.us.syms.toml / cspeed.us.datasyms.toml
+N64Recomp.exe cspeed.us.toml              # -> RecompiledFuncs/*.c
+RSPRecomp.exe aspMain.us.toml             # -> rsp/aspMain.cpp
+build.bat                                 # Release build into build/ (build_dbg.bat: RelWithDebInfo into build-dbg/)
 ```
-Built outputs in `N64Recomp/build/`: `N64Recomp.exe`, `RSPRecomp.exe` (plus mod tools you won't need yet).
-Copy the same recipe (vcvars64 + LLVM + Ninja on PATH) to build the game template later.
+Everything derived from the ROM (`RecompiledFuncs/`, `rsp/aspMain.cpp`, the ROM itself) is git-ignored
+and must never be committed. Rerun the generation steps after changing symbols or `cspeed.us.toml`.
 
-## The pipeline
-1. **Symbols** — N64Recomp needs to know every function's name, VRAM address and size.
-   Two ways to feed it:
-   - `elf_path`: an ELF with symbols (what decomp-based recomps use). Requires a full
-     disassembly that reassembles to an ELF — a lot of work on Windows.
-   - `symbols_file_path` + `rom_file_path`: a TOML listing sections and functions. **Use this.**
-     Format (from N64Recomp `from_symbol_file`):
-     ```toml
-     [[section]]
-     name = "main"
-     rom = 0x1000
-     vram = 0x80000400
-     size = 0x2BD60
-     functions = [
-       { name = "entrypoint", vram = 0x80000400, size = 0x50 },
-       # ...
-     ]
-     ```
-     Generate this file with a script from Binary Ninja's / Ghidra's / splat's function list.
-2. **Run the recompiler**: `N64Recomp cspeed.us.toml` → `RecompiledFuncs/*.c`.
-3. **Recompile the RSP audio microcode**: find the `aspMain` ucode in the ROM (text+data
-   addresses), write an `aspMain.us.toml`, run `RSPRecomp`.
-4. **Runtime glue**: the template's `src/` has the `User Task:` spots — ROM validation
-   (use the MD5 above), save type (EEPROM/SRAM — check what the game uses), game-specific
-   patches in `patches/`.
-5. **Build** the template with CMake/Ninja, run, fix crashes one function at a time.
+Notes:
+- The template expects the `clang_cl_x64` toolset; plain `clang` fails on MSVC-style flags.
+- `__PRFCHWINTRIN_H` is pre-defined for clang-cl because RT64's bundled SDL2 headers define
+  `_m_prefetch`, which newer clang treats as a builtin.
+- `rsp/aspMain.cpp` is compiled with `/clang:-msse4.1 /clang:-mssse3` (librecomp's RSP vector unit
+  needs them).
+- `lib/N64ModernRuntime` tracks a fork with a fix for `osStopThread` on other threads. The
+  RecompFrontend fix in `tools/runtime_patches/` is applied by hand
+  (`git -C lib/RecompFrontend apply ../../tools/runtime_patches/<patch>`).
 
-## The hard part (honest estimate)
-Everything above is mechanical except step 1. Without a decomp you need:
-- A reliable **function boundary list** for the main segment and any **overlays** the game
-  DMA's in later (search the boot code / `osPiStartDma` callers for extra segments).
-- **libultra function identification** so you can map `osRecvMesg`, `osViSwapBuffer`, etc.
-  to ultramodern's implementations (the runtime matches them by *name*). Signature matching
-  against a libultra 2.0I-era build (Ghidra FID / BinDiff / byte signatures) does most of this.
-- Handling any **self-modifying or jump-table-heavy code**: N64Recomp needs jump tables to be
-  resolvable; otherwise you add `manual_funcs` or instruction patches.
+## Running and debugging
+Start `CaliforniaSpeedRecompiled.exe`; the launcher asks for the ROM the first time (it is checked by
+hash). Settings and saves live in `%LOCALAPPDATA%\CaliforniaSpeedRecompiled`.
 
-Realistic ordering: get `N64Recomp` to run cleanly over the main segment with auto-detected
-functions first, then chase runtime crashes.
+Environment variables for test runs:
+- `CSPEED_AUTOSTART=1`: skip the launcher and start the game.
+- `CSPEED_INPUT_SCRIPT="12:S,15:A"`: press N64 buttons on controller 1 at the given times (seconds),
+  for driving menus without a controller.
+- `CSPEED_UNBUFFERED=1`: unbuffered stdout/stderr, so logs survive a crash.
 
-## Project layout (after the 2026-10-15 restructure)
-The repo root is now the recomp project itself (SrBananaMan's N64RecompGameTemplate, configured for this game):
+The usual loop when something fails: find the recompiled function in `RecompiledFuncs/` (names come
+from `symbols/functions.json`), study it (Binary Ninja helps), then fix the symbols, add a hook in
+`cspeed.us.toml` or native code in `src/game/`. Windows crash dumps (`%LOCALAPPDATA%\CrashDumps`)
+open in WinDbg/cdb with the matching `.pdb` from `build-dbg/`.
 
+## Symbols
+- `symbols/function_seeds.json`: function start addresses from Binary Ninja's analysis (seeds only).
+- `tools/funcbounds.py`: a MIPS control-flow walker that turns the seeds into exact function extents,
+  resolves jump tables, merges fragments that were split off and classifies data misread as code.
+  Its docstring explains the heuristics.
+- `symbols/functions.json`: hand-curated function names (source of truth), including the identified
+  libultra functions. The runtime replaces libultra functions by name, so these names matter.
+- `symbols/recomp_names.json`: names given to N64Recomp instead of the real ones, to keep the game's
+  own copy of a libultra function (`game_*`) or to route a call to native code (`cspeed_*`).
+- `tools/gen_syms.py` writes the symbol files from all of the above; `tools/check_syms.py` validates them
+  the way N64Recomp would (branches, `jal` targets, unsupported instructions).
+
+## Binary Ninja (optional)
+- `tools/binaryninja/n64_rom_loader.py` is a loader plugin: it maps the segments from the
+  `.segments.json`, names hardware registers and sets the entry point. Install it by copying it to
+  Binary Ninja's user plugin folder as `n64_rom_loader/__init__.py`, then open the `.z64` with the
+  "N64 ROM" view type.
+- [binary_ninja_mcp](https://github.com/fosdickio/binary_ninja_mcp) exposes the open database over MCP
+  and an HTTP API (port 9009), which the tools here use: `tools/bn_apply_names.py` pushes
+  `symbols/functions.json` into the database. Refresh the seeds after re-analysis with:
+  ```
+  curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,json; f=json.load(sys.stdin)['functions']; d=json.load(open('symbols/function_seeds.json')); d['seeds']=sorted({'0x%08x'%int(x['address'],16) for x in f}); json.dump(d, open('symbols/function_seeds.json','w',newline='\n'), indent=1)"
+  ```
+- Binary Ninja's MIPS decompiler does not lift FPU instructions; read float code in `RecompiledFuncs/`.
+
+## Project layout
 | Path | What |
 |---|---|
-| `src/`, `include/`, `patches/`, `assets/`, `icons/`, `CMakeLists.txt` | the game project (from the template) |
-| `lib/N64ModernRuntime`, `lib/rt64`, `lib/RecompFrontend` | runtime, renderer, UI (submodules pinned to the template's commits) |
-| `N64Recomp/` | the recompiler (submodule); `build_n64recomp.bat` builds it |
-| `cspeed.us.toml` | N64Recomp config (symbol-file mode) |
-| `cspeed.us.syms.toml`, `cspeed.us.datasyms.toml` | generated symbol files (do not edit; run `tools/gen_syms.py`) |
-| `aspMain.us.toml` | RSPRecomp config for the audio microcode, output `rsp/aspMain.cpp` |
-| `RecompiledFuncs/` | N64Recomp output (generated, ignored by git) |
-| `symbols/functions.json` | hand-curated function names (source of truth) |
-| `tools/` | analysis and generation scripts (see below) |
-| `build.bat` | configure/build the game executable (VS env + LLVM clang-cl + Ninja) |
+| `src/`, `include/`, `assets/`, `icons/`, `CMakeLists.txt` | the game project (from the template) |
+| `src/game/controller_pak.cpp` | Controller Pak emulation (also a Rumble Pak) |
+| `src/game/game_fixes.cpp` | native replacements for timing-dependent game code |
+| `src/game/graphics.cpp` | RT64 extended GBI setup, widescreen and HUD placement |
+| `cspeed.us.toml` | N64Recomp config, including hooks into game functions |
+| `aspMain.us.toml` | RSPRecomp config for the audio microcode |
+| `patches/` | game code rewritten in C and compiled for MIPS |
+| `symbols/`, `tools/` | symbol data and the scripts that produce the symbol files |
+| `lib/` | runtime, renderer and UI submodules; `N64Recomp/` is the recompiler submodule |
 
-## The pipeline, as it exists now
-```
-python tools/gen_syms.py          # ROM + Binary Ninja seeds + names -> cspeed.us.syms.toml / datasyms
-python tools/check_syms.py        # validate like N64Recomp would (branches, jal targets, unsupported insns)
-N64Recomp/build/N64Recomp.exe cspeed.us.toml      # -> RecompiledFuncs/*.c   (1522 functions, exit 0)
-N64Recomp/build/RSPRecomp.exe aspMain.us.toml     # -> rsp/aspMain.cpp
-build.bat                          # cmake configure + build -> build/CaliforniaSpeedRecompiled.exe
-```
-`tools/funcbounds.py` is the heart of it: a MIPS control-flow walker that turns Binary Ninja's
-function starts (addresses kept in `symbols/function_seeds.json`, so no Binary Ninja is needed to
-regenerate anything) into exact function
-extents, resolves jump tables, merges fragments BN split off, and classifies data-misread-as-code
-as junk. Its docstring explains the heuristics. `tools/n64feat.py` extracts per-function features
-(used for libultra identification). `tools/bn_apply_names.py` pushes `symbols/functions.json` into
-the open Binary Ninja database (HTTP API on port 9009; renames are POST).
-
-Refreshing the seeds after re-analysis in Binary Ninja (the MCP plugin's HTTP API must be running):
-```
-curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,json; f=json.load(sys.stdin)['functions']; d=json.load(open('symbols/function_seeds.json')); d['seeds']=sorted({'0x%08x'%int(x['address'],16) for x in f}); json.dump(d, open('symbols/function_seeds.json','w',newline='\n'), indent=1)"
-```
-
-Everything derived from the ROM is git-ignored and regenerated: `RecompiledFuncs/` (N64Recomp),
-`rsp/aspMain.cpp` (RSPRecomp) and the ROM itself. Never commit them.
-
-## Known facts about the game's RSP tasks and saves
-- Graphics task (set up at `0x80055168`): rspboot `0x80015330`, F3DEX.NoN fifo 2.04 text `0x80016220`, data `0x8001B400`. Handled by RT64.
-- Audio task (set up at `0x800577C0`): aspMain text `0x80015400` (ROM `0x16000`, `0xE20` bytes), data `0x8001B140`; dispatch table at data+0x10 (16 commands). See `aspMain.us.toml`.
-- Saves: Controller Pak (osPfs*) only; no EEPROM/SRAM/Flash commands exist in the ROM, so the game entry uses `SaveType::None`.
-  The runtime has no Controller Pak support, so `src/game/controller_pak.cpp` emulates it below libultra: the game's own
-  osPfs* code is recompiled (renamed `game_*` through `symbols/recomp_names.json`) and only `__osContRamRead/Write`,
-  `__osPfsGetStatus` and `osPfsIsPlug` are native. Paks are stored as `.mpk` images next to the runtime save file.
-- Every emulated pak is also a Rumble Pak: a hook after the game's pak probe (`func_8005D1C8`) sets the rumble bitmask
-  (`0x800E1B81`) and the motor OSPfs (`0x800E1D38 + n*0x68`), so no Controller Pak/Rumble Pak swapping is needed.
-
-## Status and known issues (2026-10-15)
-- The whole pipeline runs: symbols -> N64Recomp -> RSPRecomp -> CMake build of `CaliforniaSpeedRecompiled.exe`
-  (see the build notes below for what was needed to get there).
-- **No MIPS compiler on this machine.** The LLVM 21 in `%LLVM_DIR%` was built without the Mips
-  target, so `patches/` cannot be compiled yet. `patches/Makefile` detects this and writes an empty
-  `patches.elf` (via `tools/make_empty_patches_elf.py`), which keeps the build working with zero patches.
-  Neither the winget LLVM nor VS's clang has it. A mips-elf GCC toolchain is installed in Cygwin
-  (`%MIPS_TOOLCHAIN_BIN%`); wiring it into `patches/Makefile` is tracked in `TODO.md`.
-- `osMotorStop`/`osMotorStart` are 0x8000C7A0 / 0x8000C960 (`osMotorInit` fills the buffer the latter sends with 1s).
-- `osViSetMode`/`osViSwapBuffer` are 0x80009B80 / 0x80009D40; having them swapped meant nothing was ever displayed.
-- Open items and ideas live in `TODO.md`.
-- `__osExceptionPreamble` (0x8000E170) is split by two bogus seeds; harmless (N64Recomp ignores it).
-- Binary Ninja's function list contains ~1859 seeds; after cleanup 1409 functions remain
-  (1226 reachable from the entry point). Unreachable-but-kept functions are dead code or pointer-called.
-
-## Build notes (Windows)
-- Use `build.bat` (VS 2022 env + `clang-cl` from `%LLVM_DIR%` + VS Ninja + GnuWin32 make).
-  The template expects the `clang_cl_x64` toolset; plain `clang` fails on MSVC-style flags.
-- `__PRFCHWINTRIN_H` is pre-defined for clang-cl because RT64's bundled SDL2 2.26 headers define
-  `_m_prefetch`, which newer clang treats as a builtin.
-- `rsp/aspMain.cpp` is compiled with `/clang:-msse4.1 /clang:-mssse3` (librecomp's RSP vector unit uses them).
-- CMake runs `N64Recomp` from the repo root for the patch step: copy `N64Recomp/build/N64Recomp.exe`
-  and `RSPRecomp.exe` to the root (both are git-ignored).
-- `src/game/recomp_api.cpp` provides `osPiRawReadIo_recomp`, which the game's `boot()` calls directly
-  and the runtime does not implement.
-
-## Running it
-```
-build.bat                         # builds build/CaliforniaSpeedRecompiled.exe (and copies assets/ next to it)
-build\CaliforniaSpeedRecompiled.exe
-```
-The launcher (RecompFrontend) opens; choose "Select ROM" and pick `California Speed (USA).z64`
-(the runtime checks its XXH3 hash against `src/main/main.cpp`), then start the game.
-Settings and saves live under `%LOCALAPPDATA%/CaliforniaSpeedRecompiled`.
-Debug aids: `CSPEED_AUTOSTART=1` skips the launcher, `CSPEED_INPUT_SCRIPT="12:S,15:A"` presses N64
-buttons at set times, `CSPEED_UNBUFFERED=1` keeps logs intact across crashes. When something
-fails, the usual loop is: find the recompiled function in `RecompiledFuncs/` (names come from
-`symbols/functions.json`), inspect it in Binary Ninja, and either fix the symbol list or add a patch.
-
-## References
-- https://github.com/N64Recomp/N64Recomp
-- https://github.com/N64Recomp/N64ModernRuntime
-- https://github.com/Zelda64Recomp/Zelda64Recomp (reference project + BUILDING.md)
-- https://github.com/SrBananaMan/N64RecompGameTemplate
-- https://github.com/ethteck/splat
-
-## Tracked copy of the Binary Ninja loader
-`tools/binaryninja/n64_rom_loader.py` is the source of truth for the loader plugin. The installed copy is
-`%APPDATA%\Binary Ninja\plugins\n64_rom_loader\__init__.py`; after editing the tracked file, copy it over
-(or make the plugin folder a junction to `tools/binaryninja`) and reload Python plugins in Binary Ninja.
+## What has been learned about the game
+- **Tasks.** The graphics task is set up at `0x80055168` (rspboot `0x80015330`, microcode text
+  `0x80016220`, data `0x8001B400`); the audio task at `0x800577C0` (aspMain text `0x80015400`, ROM
+  `0x16000`, `0xE20` bytes, data `0x8001B140`).
+- **libultra names that were easy to get wrong.** `osViSetMode`/`osViSwapBuffer` are `0x80009B80` /
+  `0x80009D40` (swapped, nothing is ever displayed); `osMotorStop`/`osMotorStart` are `0x8000C7A0` /
+  `0x8000C960`.
+- **Scheduling.** The game stops and restarts its scheduler thread every frame (hence the runtime
+  fork), and polls `0x80001400` in busy loops; `cspeed.us.toml` inserts yields there.
+- **Saves.** Controller Pak only (no EEPROM/SRAM/Flash), so the game entry uses `SaveType::None`. The
+  runtime has no Controller Pak support, so `src/game/controller_pak.cpp` emulates it below libultra:
+  the game's own `osPfs*` code is recompiled and only `__osContRamRead/Write`, `__osPfsGetStatus` and
+  `osPfsIsPlug` are native. Paks are `.mpk` images next to the runtime's save file, each with its own
+  pak ID (the game treats equal IDs on two controllers as one pak that was moved).
+- **Rumble.** Every emulated pak is also a Rumble Pak: a hook after the pak probe (`func_8005D1C8`)
+  sets the rumble bitmask (`0x800E1B81`) and the motor OSPfs (`0x800E1D38 + n*0x68`), and requests a
+  controller re-query (`0x800200B0`), without which no controller is assigned to a player slot. The
+  pre-race "insert Rumble Pak" check (`func_800A9B54`) is told the pak is present.
+- **ROM loading.** Compressed ROM loads take a lock with a non-blocking try (`romLockTryAcquire`,
+  `0x80053A64`); when the music loader held it, an asset bank was registered empty and the menu
+  crashed. It now waits for the lock (`src/game/game_fixes.cpp`).
+- **Rendering.** The display list head is at `0x80022DC8`; camera setup is `func_800CF0B4` (per camera:
+  0x54-byte struct at `0x800F93F0 + n*0x54`, viewport at `*0x80022FB0 + n*16`). The 3D scissor is
+  inset 12 px per side, which kept RT64 from widening the scene. 2D elements go into a separate,
+  double-buffered list (`func_8005A0D8` begins it, head at `0x80141570`); sprites are drawn by
+  `func_8005C718`, fill rectangles by `func_8005CCC4`. The game mode at `0x80141E00` is 1 during races.
