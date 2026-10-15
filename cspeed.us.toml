@@ -53,3 +53,17 @@ before_vram = 0x8008C498
 func = "func_8005D1C8"
 text = "{ void cspeed_after_pak_probe(uint8_t*, recomp_context*); cspeed_after_pak_probe(rdram, ctx); }"
 before_vram = 0x8005DAF0
+
+# Before a race the game asks for Rumble Paks unless each player's "Rumble Pak inserted" byte
+# (0x8012FD81 + player) is set. The emulated pak takes the Controller Pak path of the probe, which
+# clears that byte, and setting it would make the save screens report "RUMBLE PAK" instead of the
+# Controller Pak. So only this check is told the Rumble Pak is there (the loaded byte is in $v0).
+[[patches.hook]]
+func = "func_800A9B54"
+text = "ctx->r2 = 1;"
+before_vram = 0x800A9BAC
+
+[[patches.hook]]
+func = "func_800A9B54"
+text = "ctx->r2 = 1;"
+before_vram = 0x800A9BC8

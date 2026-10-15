@@ -12,6 +12,7 @@
 #include <cstring>
 #include <fstream>
 #include <mutex>
+#include <random>
 #include <thread>
 
 #include "recomp.h"
@@ -51,14 +52,18 @@ std::filesystem::path pak_path(int channel) {
 uint16_t be16(const uint8_t* p) { return (uint16_t)((p[0] << 8) | p[1]); }
 void put_be16(uint8_t* p, uint16_t v) { p[0] = (uint8_t)(v >> 8); p[1] = (uint8_t)v; }
 
-// Lays out an empty, valid 1-bank filesystem the way libultra expects it (ID block and its three
-// backups, inode table and its backup with all data pages free, empty note table).
-void format_pak(std::array<uint8_t, PAK_SIZE>& d) {
-    d.fill(0);
+// Writes a new pak ID (and its three backups) with a fresh random number. The game remembers which
+// pak each player's save came from by this ID, and when two controllers report the same ID it
+// assumes the pak was moved between them and drops it from the other controller, so every pak
+// needs its own.
+void write_new_id(std::array<uint8_t, PAK_SIZE>& d) {
+    static std::mt19937 rng{ std::random_device{}() };
+    uint32_t random = rng();
     uint8_t id[32]{};
     memset(id + 0x00, 0xFF, 4);                       // repaired flag: 0xFFFFFFFF = never repaired
-    const uint8_t random[4] = { 0x43, 0x53, 0x50, 0x44 };
-    memcpy(id + 0x04, random, 4);                     // random
+    for (int i = 0; i < 4; i++) {
+        id[0x04 + i] = (uint8_t)(random >> (24 - 8 * i));   // random
+    }
     memset(id + 0x10, 0xFF, 8);                       // serial (low)
     put_be16(id + 0x18, 0x0001);                      // device id (bit 0 set: Controller Pak)
     id[0x1A] = 1;                                     // banks
@@ -72,6 +77,13 @@ void format_pak(std::array<uint8_t, PAK_SIZE>& d) {
     for (size_t off : { 0x20, 0x60, 0x80, 0xC0 }) {
         memcpy(&d[off], id, sizeof(id));
     }
+}
+
+// Lays out an empty, valid 1-bank filesystem the way libultra expects it (ID block and its three
+// backups, inode table and its backup with all data pages free, empty note table).
+void format_pak(std::array<uint8_t, PAK_SIZE>& d) {
+    d.fill(0);
+    write_new_id(d);
 
     // Pages 0-4 hold the ID, inode table, its backup and the two note table pages; 5-127 are data.
     constexpr int inode_start_page = 5;
@@ -85,15 +97,33 @@ void format_pak(std::array<uint8_t, PAK_SIZE>& d) {
     }
 }
 
+void flush_thread_func();
+
+// Schedules the pak to be written to disk (see flush_thread_func). Call with pak_mutex held.
+void mark_dirty(Pak& pak) {
+    pak.dirty = true;
+    pak.last_write = std::chrono::steady_clock::now();
+    std::call_once(flush_thread_started, [] { std::thread{ flush_thread_func }.detach(); });
+}
+
 Pak& get_pak(int channel) {
     Pak& pak = paks[channel];
     if (!pak.loaded) {
         pak.loaded = true;
         std::ifstream file = recomp::open_input_file_with_backup(pak_path(channel), std::ios_base::binary);
-        if (file.good() && file.read(reinterpret_cast<char*>(pak.data.data()), PAK_SIZE)) {
-            return pak;
+        if (!(file.good() && file.read(reinterpret_cast<char*>(pak.data.data()), PAK_SIZE))) {
+            format_pak(pak.data);
         }
-        format_pak(pak.data);
+        // A copied pak file (or one formatted by an earlier build, which used a fixed ID) can share
+        // its ID with another controller's pak; give it a new one.
+        for (int other = 0; other < NUM_CHANNELS; other++) {
+            if (other != channel && paks[other].loaded &&
+                memcmp(&paks[other].data[0x20], &pak.data[0x20], 32) == 0) {
+                write_new_id(pak.data);
+                mark_dirty(pak);
+                break;
+            }
+        }
     }
     return pak;
 }
@@ -177,9 +207,7 @@ extern "C" void cspeed_osContRamWrite(uint8_t* rdram, recomp_context* ctx) {
         for (size_t i = 0; i < BLOCK_SIZE; i++) {
             pak.data[address * BLOCK_SIZE + i] = MEM_B(i, buffer);
         }
-        pak.dirty = true;
-        pak.last_write = std::chrono::steady_clock::now();
-        std::call_once(flush_thread_started, [] { std::thread{ flush_thread_func }.detach(); });
+        mark_dirty(pak);
     }
     ctx->r2 = 0;
 }
