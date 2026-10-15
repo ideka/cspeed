@@ -15,9 +15,8 @@ far. Newest findings go into the item they belong to.
 
 ### Midway logo flashes before animating in
 - On the startup screen, the Midway word briefly appears off to the side for a moment before its
-  animation starts. Cosmetic. Not yet checked whether it happens at the original framerate (if not,
-  it is the same interpolation issue as above: the first frame of the animation is interpolated
-  from a stale position).
+  animation starts. Does not happen at the original framerate, so it is the same interpolation issue
+  as above (the first frame of the animation is interpolated from a stale position).
 
 ### Widescreen ("Expand" aspect ratio) and HUD placement
 - "Expand" only draws extra bars on the sides; the camera view is not widened.

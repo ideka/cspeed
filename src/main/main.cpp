@@ -193,6 +193,16 @@ ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::
 
 void update_gfx(void*) {
     recompinput::handle_events();
+
+    // RmlUi only updates the mouse cursor while a UI context is shown, so closing the last one (e.g.
+    // clicking Start in the launcher) would leave the "hand" cursor from the hovered button in place
+    // over the game. Go back to the default arrow when that happens.
+    static bool ui_was_shown = false;
+    bool ui_shown = recompui::is_any_context_shown();
+    if (ui_was_shown && !ui_shown) {
+        SDL_SetCursor(SDL_GetDefaultCursor());
+    }
+    ui_was_shown = ui_shown;
 }
 
 static SDL_AudioCVT audio_convert;
