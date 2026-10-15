@@ -170,6 +170,10 @@ ultramodern::renderer::WindowHandle create_window(ultramodern::gfx_callbacks_t::
         exit_error("Failed to create window: %s\n", SDL_GetError());
     }
 
+    // Extremely flat windows push the widescreen aspect ratio (and RT64's render targets) to absurd
+    // sizes; keep the window at least as large as the N64's own picture.
+    SDL_SetWindowMinimumSize(window, 320, 240);
+
     SDL_SysWMinfo wmInfo;
     SDL_VERSION(&wmInfo.version);
     SDL_GetWindowWMInfo(window, &wmInfo);
@@ -609,14 +613,15 @@ void on_launcher_init(recompui::LauncherMenu *menu) {
     cspeed::launcher_animation_setup(menu);
 }
 
-// Default controller layout: Nintendo-style face buttons (A right, B bottom), C-Up (the only C
-// button the game really uses) on the top button, L/R on the bumpers with R also on the right trigger.
+// Default controller layout: A on the bottom face button, B on the left and right ones, C-Up (the only
+// C button the game really uses) on the top one, L/R on the bumpers with R also on the right trigger.
 void set_default_controller_mappings() {
     using recompinput::GameInput;
     using recompinput::InputField;
     auto set = recompinput::set_default_mapping_for_controller;
-    set(GameInput::A,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
-    set(GameInput::B,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
+    set(GameInput::A,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
+    set(GameInput::B,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_WEST),
+                              InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
     set(GameInput::L,       { InputField::controller_digital(SDL_CONTROLLER_BUTTON_LEFTSHOULDER) });
     set(GameInput::R,       { InputField::controller_analog(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, true),
                               InputField::controller_digital(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) });
@@ -626,9 +631,10 @@ void set_default_controller_mappings() {
     set(GameInput::C_DOWN,  { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTY, true) });
     set(GameInput::C_LEFT,  { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTX, false) });
     set(GameInput::C_RIGHT, { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTX, true) });
-    // Recomp menus follow the same layout: accept on A (right), back on B (bottom).
-    set(GameInput::ACCEPT_MENU, { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
-    set(GameInput::BACK_MENU,   { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
+    // Recomp menus follow the same layout: accept on the bottom button, back on the left and right ones.
+    set(GameInput::ACCEPT_MENU, { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
+    set(GameInput::BACK_MENU,   { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_WEST),
+                                  InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
 }
 
 // Debug aid: CSPEED_INPUT_SCRIPT="3:S,5:A,6.5:B/2" presses N64 buttons on controller 1 at the given

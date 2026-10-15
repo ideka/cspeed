@@ -6,6 +6,7 @@
 #include "recomp.h"
 #include "librecomp/helpers.hpp"
 #include "ultramodern/config.hpp"
+#include "hle/rt64_vi.h"
 
 namespace {
 
@@ -389,8 +390,19 @@ void anchor_needle(uint8_t* rdram, uint32_t vtx_addr, uint32_t tri_addr, uint32_
 
 } // namespace
 
+// California Speed draws a black border around the picture (12 px left and right, 10 px top and
+// bottom) that a CRT's overscan hid. RT64 is told to zoom the picture by 1/24 on each side so it is
+// out of view, except in widescreen races: those remove the border instead (remove_borders), and the
+// zoom would push the HUD anchored at the window edges off screen.
+constexpr float OVERSCAN_CROP = 1.0f / 24.0f;
+
 extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
     needle_drawn_last_frame = false;
+    struct CropForFrame {
+        ~CropForFrame() {
+            RT64::VI::setOverscanCrop((needle_drawn_last_frame && expand_enabled()) ? 0.0f : OVERSCAN_CROP);
+        }
+    } crop_for_frame;
     if (MEM_W(0, GAME_MODE) != GAME_MODE_RACE) {
         return;
     }

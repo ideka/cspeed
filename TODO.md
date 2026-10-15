@@ -60,6 +60,14 @@ far. Newest findings go into the item they belong to.
   first profile on the pak (player slot `0x8016D172` is -1 when none is loaded) once the startup pak
   probe has found it. Needs the game's load-profile routine identified (called from the LOAD menu).
 
+## Rendering limits
+
+### Huge render targets crash
+- With high resolution settings plus 4x downsampling ("supersampling") quality, resizing the window to
+  extreme sizes can request absurdly large render targets and crash. RT64 does not cap them; a sanity
+  limit on the internal resolution would avoid it. The window now has a 320x240 minimum size, which
+  covers the flat-window crash during races.
+
 ## UI
 
 ### Controls menu lag (could not reproduce)

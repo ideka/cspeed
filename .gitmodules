@@ -11,4 +11,5 @@
 	branch = cspeed
 [submodule "lib/rt64"]
 	path = lib/rt64
-	url = https://github.com/rt64/rt64
+	url = https://github.com/ideka/rt64
+	branch = cspeed
