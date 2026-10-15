@@ -1,6 +1,15 @@
 #include "cspeed_game.h"
 
+// librecomp registers every code section at init as if the first 1 MB of ROM were loaded
+// contiguously at the entry point. California Speed only loads its boot segment that way; the
+// game copies the main code block itself (ROM 0x1CD60.. -> 0x80053710, see
+// "California Speed (USA).z64.segments.json"). Register that section at its real address so
+// function pointers into it resolve.
+extern "C" void load_overlays(uint32_t rom, int32_t ram_addr, uint32_t size);
+
 void cspeed::game_on_init(uint8_t* rdram, recomp_context* ctx) {
+    load_overlays(0x1CD60, (int32_t)0x80053710, 0x7E988);
+
     // User Task: Add rom decompression routine if it needs it. If the game doesn't need it, you can just leave this
     // function empty.
     (void)rdram;

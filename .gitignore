@@ -69,6 +69,8 @@ __pycache__/
 bld/
 build-cmake/
 build/
+build-*/
+build_*/
 gamecontrollerdb.txt
 imgui.ini
 node_modules/
