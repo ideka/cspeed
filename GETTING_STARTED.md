@@ -130,16 +130,20 @@ N64Recomp/build/RSPRecomp.exe aspMain.us.toml     # -> rsp/aspMain.cpp
 build.bat                          # cmake configure + build -> build/CaliforniaSpeedRecompiled.exe
 ```
 `tools/funcbounds.py` is the heart of it: a MIPS control-flow walker that turns Binary Ninja's
-function starts (dumped to `scratch/bn_funcs.json` via the MCP HTTP API) into exact function
+function starts (addresses kept in `symbols/function_seeds.json`, so no Binary Ninja is needed to
+regenerate anything) into exact function
 extents, resolves jump tables, merges fragments BN split off, and classifies data-misread-as-code
 as junk. Its docstring explains the heuristics. `tools/n64feat.py` extracts per-function features
 (used for libultra identification). `tools/bn_apply_names.py` pushes `symbols/functions.json` into
 the open Binary Ninja database (HTTP API on port 9009; renames are POST).
 
-Refreshing BN seeds after re-analysis in Binary Ninja:
+Refreshing the seeds after re-analysis in Binary Ninja (the MCP plugin's HTTP API must be running):
 ```
-curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,json; json.dump(json.load(sys.stdin)['functions'], open('scratch/bn_funcs.json','w'))"
+curl -s "http://127.0.0.1:9009/methods?limit=100000" | python -c "import sys,json; f=json.load(sys.stdin)['functions']; d=json.load(open('symbols/function_seeds.json')); d['seeds']=sorted({'0x%08x'%int(x['address'],16) for x in f}); json.dump(d, open('symbols/function_seeds.json','w',newline='\n'), indent=1)"
 ```
+
+Everything derived from the ROM is git-ignored and regenerated: `RecompiledFuncs/` (N64Recomp),
+`rsp/aspMain.cpp` (RSPRecomp) and the ROM itself. Never commit them.
 
 ## Known facts about the game's RSP tasks and saves
 - Graphics task (set up at `0x80055168`): rspboot `0x80015330`, F3DEX.NoN fifo 2.04 text `0x80016220`, data `0x8001B400`. Handled by RT64.
@@ -185,7 +189,8 @@ build\CaliforniaSpeedRecompiled.exe
 The launcher (RecompFrontend) opens; choose "Select ROM" and pick `California Speed (USA).z64`
 (the runtime checks its XXH3 hash against `src/main/main.cpp`), then start the game.
 Settings and saves live under `%LOCALAPPDATA%/CaliforniaSpeedRecompiled`.
-Expect crashes or glitches on first runs: nothing game-specific has been debugged yet. When it
+Debug aids: `CSPEED_AUTOSTART=1` skips the launcher, `CSPEED_INPUT_SCRIPT="12:S,15:A"` presses N64
+buttons at set times, `CSPEED_UNBUFFERED=1` keeps logs intact across crashes. When something
 fails, the usual loop is: find the recompiled function in `RecompiledFuncs/` (names come from
 `symbols/functions.json`), inspect it in Binary Ninja, and either fix the symbol list or add a patch.
 

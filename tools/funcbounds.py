@@ -1,6 +1,6 @@
 """Compute real function extents from the ROM with a MIPS control-flow walk.
 
-Binary Ninja's function starts are taken as seeds (scratch/bn_funcs.json), but
+Binary Ninja's function starts are taken as seeds (symbols/function_seeds.json), but
 BN splits functions at some branch targets and misreads data as code, so we:
 
   * walk the CFG from each start; the function extends to the last reachable

@@ -15,7 +15,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.join(HERE, "..")
 ROM = os.path.join(ROOT, "California Speed (USA).z64")
 SIDECAR = ROM + ".segments.json"
-BN_FUNCS = os.path.join(ROOT, "scratch", "bn_funcs.json")
+SEEDS = os.path.join(ROOT, "symbols", "function_seeds.json")
 
 
 def _num(v):
@@ -167,9 +167,7 @@ class Analysis:
 def load_all():
     rom = open(ROM, "rb").read()
     segs = load_segments(rom)
-    j = json.load(open(BN_FUNCS))
-    j = j["functions"] if isinstance(j, dict) else j
-    funcs = [int(x["address"], 16) for x in j]
+    funcs = [int(a, 16) for a in json.load(open(SEEDS))["seeds"]]
     return rom, segs, Analysis(rom, segs, funcs)
 
 
