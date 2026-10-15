@@ -77,9 +77,10 @@ Notes:
   `_m_prefetch`, which newer clang treats as a builtin.
 - `rsp/aspMain.cpp` is compiled with `/clang:-msse4.1 /clang:-mssse3` (librecomp's RSP vector unit
   needs them).
-- `lib/N64ModernRuntime` tracks a fork with a fix for `osStopThread` on other threads. The
-  RecompFrontend fix in `tools/runtime_patches/` is applied by hand
-  (`git -C lib/RecompFrontend apply ../../tools/runtime_patches/<patch>`).
+- `lib/N64ModernRuntime` and `lib/RecompFrontend` track the `cspeed` branches of forks
+  (github.com/ideka/N64ModernRuntime: stopping other threads, thread queue removal;
+  github.com/ideka/RecompFrontend: the fullscreen toggle is saved). The upstream projects do not take
+  AI-assisted contributions, so these stay forks.
 
 ## Running and debugging
 Start `CaliforniaSpeedRecompiled.exe`; the launcher asks for the ROM the first time (it is checked by

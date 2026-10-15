@@ -7,7 +7,8 @@
 	branch = cspeed
 [submodule "lib/RecompFrontend"]
 	path = lib/RecompFrontend
-	url = https://github.com/N64Recomp/RecompFrontend
+	url = https://github.com/ideka/RecompFrontend
+	branch = cspeed
 [submodule "lib/rt64"]
 	path = lib/rt64
 	url = https://github.com/rt64/rt64

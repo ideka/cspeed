@@ -65,13 +65,3 @@ far. Newest findings go into the item they belong to.
 ### Controls menu lag (could not reproduce)
 - The recomp controls menu (not the in-game one) lagged badly when moving between options, once, while
   an attract-mode demo was playing in the background. Did not happen again.
-
-## Infrastructure
-
-### Submodule patches
-- `lib/N64ModernRuntime` tracks the `cspeed` branch of the
-  [ideka/N64ModernRuntime](https://github.com/ideka/N64ModernRuntime) fork (osStopThread on other
-  threads). Upstream does not accept AI-assisted contributions, so it stays a fork.
-- `tools/runtime_patches/0002-*.patch` (RecompFrontend: F11/Alt+Enter fullscreen toggle is saved) is
-  still applied by hand (`git -C lib/RecompFrontend apply ../../tools/runtime_patches/0002-*.patch`);
-  move it to a RecompFrontend fork (upstream does not accept AI-assisted contributions).
