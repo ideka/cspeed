@@ -65,13 +65,16 @@ bool expand_enabled() {
     return ultramodern::renderer::get_graphics_config().ar_option == ultramodern::renderer::AspectRatio::Expand;
 }
 
-// Widescreen only applies during races (game mode 0x80141E00 == 1). Menus combine a 4:3 background
-// image with 3D objects that slide in from outside the 4:3 area, which a wider view would reveal.
+// Widescreen only applies during races. Menus combine a 4:3 background image with 3D objects that
+// slide in from outside the 4:3 area, which a wider view would reveal. The game mode at 0x80141E00
+// is 1 in races but also in the race setup menus, so a race is recognised by the speedometer needle
+// having been drawn in the previous frame (see cspeed_widescreen_frame_submit).
 constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;
 constexpr int32_t GAME_MODE_RACE = 1;
+bool needle_drawn_last_frame = false;
 
 bool in_race(uint8_t* rdram) {
-    return MEM_W(0, GAME_MODE) == GAME_MODE_RACE;
+    return MEM_W(0, GAME_MODE) == GAME_MODE_RACE && needle_drawn_last_frame;
 }
 
 } // namespace
@@ -130,6 +133,11 @@ constexpr gpr HUD_CLIP_LEFT = (gpr)(int32_t)0x801426D0;
 constexpr gpr HUD_CLIP_RIGHT = (gpr)(int32_t)0x80134380;
 constexpr int32_t SCREEN_WIDTH = 320;
 constexpr int32_t SCREEN_HEIGHT = 240;
+// Extends scissors and full-width overlays well past the left/right origins so that they always
+// reach the window edges, whatever the HUD ratio option puts the origins at (10.2 fixed point).
+constexpr int32_t BEYOND_EDGE = 1000 * 4;
+constexpr uint32_t WIDE_SCISSOR_UL = ((uint32_t)(-BEYOND_EDGE) & 0xFFFF) << 16;                          // ulx, uly = 0
+constexpr uint32_t WIDE_SCISSOR_LR = ((uint32_t)BEYOND_EDGE & 0xFFFF) << 16 | (uint32_t)(SCREEN_HEIGHT * 4); // lrx, lry
 
 uint64_t last_rect_align = ~0ull;
 
@@ -160,12 +168,12 @@ extern "C" void cspeed_hud_begin(uint8_t* rdram, recomp_context* ctx) {
     if (!hud_alignment_active(rdram)) {
         return;
     }
-    // gEXSetScissor(G_SC_NON_INTERLACE, LEFT, RIGHT, 0, 0, 0, 240): left edge to right edge.
+    // gEXSetScissor(G_SC_NON_INTERLACE, LEFT, RIGHT, ...): the whole window.
     emit_hud_command(rdram,
         (RT64_EXTENDED_OPCODE << 24) | G_EX_SETSCISSOR_V1,
         (G_EX_ORIGIN_LEFT << 2) | (G_EX_ORIGIN_RIGHT << 14),
-        0,
-        (uint32_t)(SCREEN_HEIGHT * 4));
+        WIDE_SCISSOR_UL,
+        WIDE_SCISSOR_LR);
 }
 
 // Hook at the entry of func_8005C718 (draw sprite) and func_8005CCC4 (fill rectangle); both take
@@ -185,12 +193,11 @@ extern "C" void cspeed_hud_sprite_align(uint8_t* rdram, recomp_context* ctx) {
     int32_t ul_offset = 0;
     int32_t lr_offset = 0;
     if (ulx <= 16 && lrx >= SCREEN_WIDTH - 16) {
-        // Full width: move the left edge to the left screen edge and the right edge to the right one
-        // (the right origin adds the screen width; offsets are 10.2 fixed point).
+        // Full width: stretch past both window edges (the scissor cuts it at the window).
         lorigin = G_EX_ORIGIN_LEFT;
         rorigin = G_EX_ORIGIN_RIGHT;
-        ul_offset = -ulx * 4;
-        lr_offset = -lrx * 4;
+        ul_offset = -ulx * 4 - BEYOND_EDGE;
+        lr_offset = -lrx * 4 + BEYOND_EDGE;
     } else if (center_x < SCREEN_WIDTH * 2 / 5) {
         lorigin = rorigin = G_EX_ORIGIN_LEFT;
     } else if (center_x > SCREEN_WIDTH * 3 / 5) {
@@ -222,11 +229,6 @@ extern "C" void cspeed_hud_sprite_align(uint8_t* rdram, recomp_context* ctx) {
 //   like the HUD) and restores the normal viewport afterwards.
 namespace {
 
-// Disabled: re-applying the viewport for the needle adds projections in the middle of the frame,
-// which breaks RT64's frame interpolation (other racers and wheels blink at high framerates).
-// See TODO.md.
-constexpr bool ANCHOR_NEEDLE = false;
-
 constexpr uint32_t G_EX_SETVIEWPORTALIGN_V1 = 0x000007;
 constexpr uint32_t NEEDLE_COLOR = 0xC80000FF;
 constexpr uint32_t NEEDLE_DL_BASE = PROLOGUE_BASE + 0x1000;   // one list per prologue slot
@@ -255,61 +257,70 @@ void remove_side_borders(uint8_t* rdram, uint32_t dl) {
     }
 }
 
-void anchor_needle(uint8_t* rdram, uint32_t dl, uint32_t slot) {
-    uint32_t viewport = (uint32_t)MEM_W(0, VIEWPORTS);    // camera 0
+// Finds the needle's vertex load in the frame's top-level display list: "4 vertices" after the needle
+// colour, followed by its triangles. Returns the address of the vertex load (0 if not found) and
+// the triangles' address in *tri.
+uint32_t find_needle(uint8_t* rdram, uint32_t dl, uint32_t* tri) {
     bool red = false;
     for (int i = 0; i < 20000; i++, dl += 8) {
-        gpr cmd = (gpr)(int32_t)dl;
-        uint32_t w0 = (uint32_t)MEM_W(0, cmd);
-        uint32_t w1 = (uint32_t)MEM_W(4, cmd);
+        uint32_t w0 = (uint32_t)MEM_W(0, (gpr)(int32_t)dl);
+        uint32_t w1 = (uint32_t)MEM_W(4, (gpr)(int32_t)dl);
         uint32_t op = w0 >> 24;
         if (op == 0xDF) {
-            return;
+            return 0;
         }
         if (op == 0xFA) {
             red = (w1 == NEEDLE_COLOR);
             continue;
         }
-        if (!red || op != 0x01 || w0 != 0x01004008) {
+        if (!red || w0 != 0x01004008) {
             continue;
         }
-        // Found "4 vertices" after the needle colour; the triangles follow within a few commands.
-        for (int j = 1; j <= 3; j++) {
-            gpr tri = (gpr)(int32_t)(dl + j * 8);
-            uint32_t t0 = (uint32_t)MEM_W(0, tri);
-            if ((t0 >> 24) != 0x06) {
-                continue;
+        for (uint32_t j = 1; j <= 3; j++) {
+            if (((uint32_t)MEM_W(0, (gpr)(int32_t)(dl + j * 8)) >> 24) == 0x06) {
+                *tri = dl + j * 8;
+                return dl;
             }
-            gpr sub = (gpr)(int32_t)(NEEDLE_DL_BASE + slot * NEEDLE_DL_SIZE);
-            uint32_t align = (RT64_EXTENDED_OPCODE << 24) | G_EX_SETVIEWPORTALIGN_V1;
-            uint32_t right_offset = ((uint32_t)(-SCREEN_WIDTH * 4) & 0xFFFF) << 16;
-            int32_t words[] = {
-                (int32_t)align, (int32_t)G_EX_ORIGIN_RIGHT,          // gEXSetViewportAlign(RIGHT, -320*4, 0)
-                (int32_t)right_offset, 0,
-                (int32_t)0xDC080008, (int32_t)viewport,             // gSPViewport (F3DEX2 movemem)
-                (int32_t)w0, (int32_t)w1,                           // the vertex load
-                MEM_W(0, tri), MEM_W(4, tri),                       // the triangles
-                (int32_t)align, (int32_t)G_EX_ORIGIN_NONE,           // gEXSetViewportAlign(NONE, 0, 0)
-                0, 0,
-                (int32_t)0xDC080008, (int32_t)viewport,             // gSPViewport
-                (int32_t)0xDF000000, 0,                             // end of display list
-            };
-            for (size_t k = 0; k < sizeof(words) / sizeof(words[0]); k++) {
-                MEM_W((int32_t)(k * 4), sub) = words[k];
-            }
-            MEM_W(0, cmd) = (int32_t)0xDE000000;              // call it instead of the vertex load
-            MEM_W(4, cmd) = (int32_t)(NEEDLE_DL_BASE + slot * NEEDLE_DL_SIZE);
-            MEM_W(0, tri) = 0;                                // G_NOOP
-            MEM_W(4, tri) = 0;
-            return;
         }
     }
+    return 0;
+}
+
+void anchor_needle(uint8_t* rdram, uint32_t vtx_addr, uint32_t tri_addr, uint32_t slot) {
+    gpr cmd = (gpr)(int32_t)vtx_addr;
+    gpr tri = (gpr)(int32_t)tri_addr;
+    uint32_t viewport = (uint32_t)MEM_W(0, VIEWPORTS);    // camera 0
+    gpr sub = (gpr)(int32_t)(NEEDLE_DL_BASE + slot * NEEDLE_DL_SIZE);
+    uint32_t align = (RT64_EXTENDED_OPCODE << 24) | G_EX_SETVIEWPORTALIGN_V1;
+    uint32_t right_offset = ((uint32_t)(-SCREEN_WIDTH * 4) & 0xFFFF) << 16;
+    int32_t words[] = {
+        (int32_t)((RT64_EXTENDED_OPCODE << 24) | G_EX_SETSCISSOR_V1),   // gEXSetScissor(LEFT, RIGHT, ...):
+        (int32_t)((G_EX_ORIGIN_LEFT << 2) | (G_EX_ORIGIN_RIGHT << 14)),  //   the whole window (the needle
+        (int32_t)WIDE_SCISSOR_UL, (int32_t)WIDE_SCISSOR_LR,             //   may pass the old 4:3 edge)
+        (int32_t)align, (int32_t)G_EX_ORIGIN_RIGHT,                     // gEXSetViewportAlign(RIGHT, -320*4, 0)
+        (int32_t)right_offset, 0,
+        (int32_t)0xDC080008, (int32_t)viewport,                        // gSPViewport (F3DEX2 movemem)
+        MEM_W(0, cmd), MEM_W(4, cmd),                                  // the vertex load
+        MEM_W(0, tri), MEM_W(4, tri),                                  // the triangles
+        (int32_t)align, (int32_t)G_EX_ORIGIN_NONE,                      // gEXSetViewportAlign(NONE, 0, 0)
+        0, 0,
+        (int32_t)0xDC080008, (int32_t)viewport,                        // gSPViewport
+        (int32_t)0xDF000000, 0,                                        // end (the game sets the HUD's
+    };                                                                 //   scissor right after)
+    for (size_t k = 0; k < sizeof(words) / sizeof(words[0]); k++) {
+        MEM_W((int32_t)(k * 4), sub) = words[k];
+    }
+    MEM_W(0, cmd) = (int32_t)0xDE000000;                               // call it instead of the vertex load
+    MEM_W(4, cmd) = (int32_t)(NEEDLE_DL_BASE + slot * NEEDLE_DL_SIZE);
+    MEM_W(0, tri) = 0;                                                 // G_NOOP
+    MEM_W(4, tri) = 0;
 }
 
 } // namespace
 
 extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
-    if (!expand_enabled() || !in_race(rdram)) {
+    needle_drawn_last_frame = false;
+    if (MEM_W(0, GAME_MODE) != GAME_MODE_RACE) {
         return;
     }
     // The task points at our prologue; the game's display list is the target of its branch.
@@ -321,8 +332,12 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     if ((dl & 0xFF000000) != 0x80000000) {
         return;
     }
-    remove_side_borders(rdram, dl);
-    if (ANCHOR_NEEDLE) {
-        anchor_needle(rdram, dl, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
+    uint32_t tri = 0;
+    uint32_t needle = find_needle(rdram, dl, &tri);
+    needle_drawn_last_frame = (needle != 0);
+    if (!needle_drawn_last_frame || !expand_enabled()) {
+        return;
     }
+    remove_side_borders(rdram, dl);
+    anchor_needle(rdram, needle, tri, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
 }
