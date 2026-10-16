@@ -22,6 +22,9 @@ namespace cspeed::arcade {
     // Loads or unloads the pack according to the Arcade Textures option.
     void apply_pack_setting();
 
+    // Temporarily hides the pack regardless of the option (debug tools: quick before/after comparisons).
+    void set_hidden(bool hidden);
+
     // Call once the config is loaded: loads the pack, rebuilding it first if the mapping changed.
     void startup();
 

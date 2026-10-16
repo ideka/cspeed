@@ -51,6 +51,20 @@ far. Newest findings go into the item they belong to.
 - Only Monterey has been checked closely; other tracks (sky dome fix, border removal) and
   split-screen (2 players) have not been checked in widescreen.
 
+### Arcade textures: remaining work
+- The mapping (`assets/arcade_textures.json`, 604 textures) is built offline from the arcade data with
+  the scripts in the (uncommitted) `California-Speed_Arcade_EN/tools`: dump N64 textures
+  (`RT64_DUMP_TEXTURES`), decode (`n64tex.py`), match (`match.py`, `match2.py`), review
+  (`review_page.py`), build (`build_mapping.py`, which also refines crops and picks key colours,
+  mattes and opacities), and check transparency against the N64 textures (`alpha_check.py`).
+- Car paint: 79 palettized images (1857 hashes) differ only by palette (the car colour), and the RT64
+  hash includes the palette, so they are not replaced. Options: one recoloured replacement per dumped
+  colour (colours never dumped stay N64), or palette-independent matching with tinting in RT64.
+- HUD and menu art is split into thin strips (4 KB of TMEM): stack the strips of the same source image
+  (by RDRAM address) before matching, then replace each strip with its slice.
+- Not every track was played when dumping (some are locked): textures only seen there are missing.
+- Wrong matches show up in game: add their hashes to `rejected.json`.
+
 ## Gameplay
 
 ### Load the first Controller Pak profile on startup

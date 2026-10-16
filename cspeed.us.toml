@@ -163,3 +163,24 @@ before_vram = 0x80081C6C
 func = "func_8001175C"
 text = "{ void cspeed_audio_pitch(uint8_t*, recomp_context*); cspeed_audio_pitch(rdram, ctx); }"
 before_vram = 0x800117E0
+
+# Debug tools (CSPEED_DEBUG=1, see src/game/debug_tools.cpp): free camera and race freeze.
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ void cspeed_debug_camera(uint8_t*, recomp_context*); cspeed_debug_camera(rdram, ctx); }"
+before_vram = 0x800CF110
+
+[[patches.hook]]
+func = "func_80094234"
+text = "{ int cspeed_debug_freeze(); if (cspeed_debug_freeze()) return; }"
+before_vram = 0x80094234
+
+[[patches.hook]]
+func = "func_8005434C"
+text = "{ void cspeed_debug_frame_time(uint8_t*, recomp_context*); cspeed_debug_frame_time(rdram, ctx); }"
+before_vram = 0x80054710
+
+[[patches.hook]]
+func = "func_80093014"
+text = "{ void cspeed_debug_track(uint8_t*, recomp_context*); cspeed_debug_track(rdram, ctx); }"
+before_vram = 0x800930A4

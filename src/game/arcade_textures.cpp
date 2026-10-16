@@ -10,7 +10,8 @@
 // The mapping (assets/arcade_textures.json) gives, for each N64 texture hash, the arcade texture and
 // the crop of it that matches, the flip (many N64 textures are stored upside down), and the N64
 // texture's size (RT64's, and the part of it holding loaded texels), and for textures the arcade made
-// transparent with a key colour, that colour. Each replacement is the crop scaled to the loaded part of
+// transparent with a key colour, that colour (or, for opaque N64 textures, a colour to fill the arcade
+// texture's transparency with, or an opacity for semi-transparent ones). Each replacement is the crop scaled to the loaded part of
 // the N64 texture, at an integer multiple of its size.
 
 #include "cspeed_arcade.h"
@@ -264,6 +265,16 @@ void apply_key(Image &image, const json &key) {
     }
 }
 
+// For N64 textures that are opaque where the arcade one has transparency: fill it with a colour.
+void apply_matte(Image &image, const json &colour) {
+    int mc[3] = { colour[0], colour[1], colour[2] };
+    for (size_t k = 0; k < image.rgba.size(); k += 4) {
+        uint8_t *p = &image.rgba[k];
+        for (int c = 0; c < 3; c++) p[c] = uint8_t((p[c] * p[3] + mc[c] * (255 - p[3])) / 255);
+        p[3] = 255;
+    }
+}
+
 // Resamples one axis: box filter when shrinking, linear interpolation when enlarging.
 Image resample_axis(const Image &src, int new_size, bool horizontal) {
     int old_size = horizontal ? src.width : src.height;
@@ -341,6 +352,7 @@ std::string mapping_id() {
 }
 
 std::atomic<bool> generating = false;
+std::atomic<bool> hidden = false;
 
 } // namespace
 
@@ -401,6 +413,12 @@ std::string cspeed::arcade::generate_pack(const std::filesystem::path &chd_path,
         int scale = std::clamp(int(std::ceil(std::max(double(w) / loaded_w, double(h) / loaded_h))), 1, MAX_SCALE);
         Image cropped = crop(source, x, y, w, h, flip.find('h') != std::string::npos, flip.find('v') != std::string::npos);
         if (t.contains("key")) apply_key(cropped, t["key"]);
+        if (t.contains("matte")) apply_matte(cropped, t["matte"]);
+        if (t.contains("opacity")) {
+            // Semi-transparent N64 textures (water, glass) whose arcade version is opaque.
+            uint8_t level = uint8_t(int(t["opacity"]));
+            for (size_t k = 3; k < cropped.rgba.size(); k += 4) cropped.rgba[k] = std::min(cropped.rgba[k], level);
+        }
         Image content = resize(cropped, loaded_w * scale, loaded_h * scale);
         Image result = place(content, tile_w * scale, tile_h * scale);
 
@@ -425,8 +443,13 @@ std::string cspeed::arcade::generate_pack(const std::filesystem::path &chd_path,
 }
 
 void cspeed::arcade::apply_pack_setting() {
-    bool use = cspeed::arcade_textures_enabled() && pack_available();
+    bool use = cspeed::arcade_textures_enabled() && !hidden && pack_available();
     recompui::renderer::set_base_texture_pack(use ? pack_directory() : std::filesystem::path());
+}
+
+void cspeed::arcade::set_hidden(bool hide) {
+    hidden = hide;
+    apply_pack_setting();
 }
 
 void cspeed::arcade::startup() {
