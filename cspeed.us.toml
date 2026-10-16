@@ -288,3 +288,12 @@ func = "func_800CE61C"
 text = "{ float cspeed_world_scale(void); if (ctx->r22 == 0) ctx->f2.fl *= cspeed_world_scale(); }"
 before_vram = 0x800CEA54
 
+
+# Screen position adjustment: while L and R are held, the game moves the picture with the stick
+# (func_800541EC, run every frame), and keeps the result (also saved in the Controller Pak profile).
+# Meant for centring the picture on a TV; with both stick clicks as L and R it is easy to trigger by
+# accident. Disabled: the picture always stays centred.
+[[patches.hook]]
+func = "func_800541EC"
+text = "MEM_H(0x5C, (gpr)(int32_t)0x80020000) = 0; MEM_H(0x5A, (gpr)(int32_t)0x80020000) = 0; return;"
+before_vram = 0x800541EC

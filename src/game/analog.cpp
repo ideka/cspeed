@@ -4,7 +4,8 @@
 // brake are buttons. The game copies the stick into a per-player input block (func_800821E4) and
 // already works in float from there:
 // - Steering (func_80081C7C): clamp(x / (0.95 * max), -1, 1), where max is the largest stick value
-//   seen so far (it starts at 70). Hooked to use the same formula on the unrounded stick value.
+//   seen so far (it starts at 70). Hooked to use the same formula on the unrounded stick value, with the
+//   full range (82) from the start.
 // - Gas and brake (func_80081AC0): 1.0 while their button is held. Hooked to use how far the buttons
 //   are pressed instead, which is analog when they are bound to e.g. the triggers.
 // Only live controller input is changed: the hooks check the game's value against the controller.
@@ -22,11 +23,10 @@
 namespace {
 
 // Per-player input block: +1 controller (4 or more = none), +4 buttons, +8/+9 stick X/Y,
-// +0xA/+0xB largest stick X/Y seen, +0xC/+0xE gas/brake button masks.
+// +0xA/+0xB largest stick X/Y seen (the game's calibration), +0xC/+0xE gas/brake button masks.
 constexpr int32_t BLOCK_CONTROLLER = 0x1;
 constexpr int32_t BLOCK_BUTTONS = 0x4;
 constexpr int32_t BLOCK_STICK_X = 0x8;
-constexpr int32_t BLOCK_STICK_X_MAX = 0xA;
 constexpr int32_t BLOCK_GAS_BUTTONS = 0xC;
 constexpr int32_t BLOCK_BRAKE_BUTTONS = 0xE;
 // Car: gas and brake amounts (0 to 1), from the masks at +0xC and +0xE.
@@ -34,6 +34,7 @@ constexpr int32_t CAR_GAS = 0x71C;
 constexpr int32_t CAR_BRAKE = 0x718;
 
 constexpr int MAX_CONTROLLERS = 4;
+constexpr float N64_STICK_RANGE = 82.0f;  // the runtime's stick range on an axis
 std::atomic<float> host_stick_x[MAX_CONTROLLERS];
 std::atomic<float> host_stick_y[MAX_CONTROLLERS];
 
@@ -101,11 +102,10 @@ extern "C" void cspeed_analog_steering(uint8_t* rdram, recomp_context* ctx) {
     if (std::abs((int)x - game_x) > 1) {  // not from the controller
         return;
     }
-    int8_t max = MEM_B(BLOCK_STICK_X_MAX, block);
-    if (max <= 0) {
-        return;
-    }
-    ctx->f0.fl = std::clamp(x / (0.95f * max), -1.0f, 1.0f);
+    // The game calibrates the stick's range as it goes: it assumes 70 at the start of each race and
+    // raises it while the stick goes further, so full lock first comes at 81% of the stick's travel and
+    // only later at 95%. Use the full range (the runtime's 82) from the start instead.
+    ctx->f0.fl = std::clamp(x / (0.95f * N64_STICK_RANGE), -1.0f, 1.0f);
 }
 
 // Called after gas and brake are set, $s0 = car, $s1 = input block.
