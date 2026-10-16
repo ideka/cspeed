@@ -8,6 +8,7 @@
 //         chunks without its visible bit (func_800CE61C).
 //   F5  fog off/on (src/game/graphics.cpp).
 //   F6  far view: the camera's far plane (and the game's draw distance) from 2000 to 20000.
+//   F7  world scale 1/4 (src/game/draw_distance.cpp): models further than 2048 units are drawn too.
 // CSPEED_TRACK=<n> goes from startup straight into a race on track n (0-15, locked ones too), skipping
 // the title and the menus; it also replaces the track of races started from the menus.
 // It also skips the startup screens (copyright, intro) to the title screen, and turns
@@ -28,6 +29,8 @@
 #include "cspeed_arcade.h"
 #include "cspeed_support.h"
 #include "recompinput/input_state.h"
+
+extern "C" void cspeed_set_world_scale(float scale);
 
 namespace {
 
@@ -111,6 +114,7 @@ bool arcade_textures_hidden = false;
 bool no_terrain_culling = false;
 bool no_fog = false;
 bool far_view = false;
+bool world_scale_small = false;
 float saved_far = 0, saved_draw_distance = 0;
 constexpr gpr CAMERA_FAR = (gpr)(int32_t)(0x800F93F0 + 0x38);  // camera 0's projection far plane
 constexpr gpr DRAW_DISTANCE = (gpr)(int32_t)0x80142764;       // nodes beyond it are not drawn
@@ -151,6 +155,10 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
             set_f32(rdram, CAMERA_FAR, 0, saved_far);
             set_f32(rdram, DRAW_DISTANCE, 0, saved_draw_distance);
         }
+    }
+    if (pressed(keys, SDL_SCANCODE_F7)) {
+        world_scale_small = !world_scale_small;
+        cspeed_set_world_scale(world_scale_small ? 0.25f : 1.0f);
     }
     if (far_view) {
         set_f32(rdram, CAMERA_FAR, 0, FAR_VIEW);

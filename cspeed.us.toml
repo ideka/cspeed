@@ -204,3 +204,75 @@ before_vram = 0x800CDEC8
 func = "func_800CDE40"
 text = "{ int cspeed_debug_no_terrain_culling(); if (cspeed_debug_no_terrain_culling()) ctx->f2.fl = INFINITY; }"
 before_vram = 0x800CE3A0
+
+# World scale (draw distance experiment, see src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_world_scale(void); ctx->f2.fl = -2048.0f / cspeed_world_scale(); }"
+before_vram = 0x800CA978
+
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_world_scale(void); ctx->f0.fl = 2048.0f / cspeed_world_scale(); }"
+before_vram = 0x800CA99C
+
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_world_scale(void); ctx->f0.fl = 1048576.0f * cspeed_world_scale(); }"
+before_vram = 0x800CAA44
+
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_world_scale(void); ctx->f4.fl = 65536.0f * cspeed_world_scale(); }"
+before_vram = 0x800CAAB8
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ float cspeed_world_scale(void); ctx->f2.fl = -2048.0f / cspeed_world_scale(); }"
+before_vram = 0x800CAC5C
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ float cspeed_world_scale(void); ctx->f0.fl = 2048.0f / cspeed_world_scale(); }"
+before_vram = 0x800CAC80
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ float cspeed_world_scale(void); ctx->f0.fl = 1048576.0f * cspeed_world_scale(); }"
+before_vram = 0x800CAD28
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ float cspeed_world_scale(void); ctx->f4.fl = 65536.0f * cspeed_world_scale(); }"
+before_vram = 0x800CAD9C
+
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ float cspeed_world_scale(void); ctx->f2.fl = 16.0f * cspeed_world_scale(); }"
+before_vram = 0x800CF4E4
+
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ float cspeed_world_scale(void); ctx->f6.fl = 16.0f * cspeed_world_scale(); }"
+before_vram = 0x800CF540
+
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ void cspeed_world_scale_ortho(uint8_t*, recomp_context*); cspeed_world_scale_ortho(rdram, ctx); }"
+before_vram = 0x800CF514
+
+[[patches.hook]]
+func = "func_800CE61C"
+text = "{ float cspeed_world_scale(void); if (ctx->r22 == 0) ctx->f2.fl *= cspeed_world_scale(); }"
+before_vram = 0x800CE96C
+
+[[patches.hook]]
+func = "func_800CE61C"
+text = "{ float cspeed_world_scale(void); if (ctx->r22 == 0) ctx->f2.fl *= cspeed_world_scale(); }"
+before_vram = 0x800CE9E0
+
+[[patches.hook]]
+func = "func_800CE61C"
+text = "{ float cspeed_world_scale(void); if (ctx->r22 == 0) ctx->f2.fl *= cspeed_world_scale(); }"
+before_vram = 0x800CEA54
+

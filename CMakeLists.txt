@@ -175,6 +175,7 @@ set (SOURCES
     ${CMAKE_SOURCE_DIR}/src/game/analog.cpp
     ${CMAKE_SOURCE_DIR}/src/game/arcade_textures.cpp
     ${CMAKE_SOURCE_DIR}/src/game/debug_tools.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/draw_distance.cpp
 
     ${CMAKE_SOURCE_DIR}/rsp/aspMain.cpp
 )
