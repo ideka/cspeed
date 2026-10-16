@@ -6,7 +6,8 @@
 // at least 2 retraces have passed since the last swap: when a frame's task completes
 // (__scTaskComplete), or else later from the retrace handler (__scHandleRetrace). Both checks are
 // hooked (cspeed.us.toml) to allow a swap every retrace during races, so frames that are ready in
-// time are shown at 60 FPS. Menus keep 30: their animations advance per frame, not per retrace.
+// time are shown at 60 FPS. Menus keep 30: their animations advance per frame, not per retrace. So does
+// the name entry for a new record on the results screen (its cursor moves per frame).
 
 #include "recomp.h"
 
@@ -16,11 +17,16 @@ constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;    // 1 = race and race setu
 constexpr gpr GAME_STATE = (gpr)(int32_t)0x8016D928;   // 3..10 = countdown to results (see graphics.cpp)
 constexpr gpr SCHED_LAST_SWAP_FRAME = (gpr)(int32_t)0x800013FC;  // retrace count at the last swap
 constexpr int32_t SCHED_FRAME_COUNT = 0x27C;                     // OSSched: retrace count
+constexpr int32_t STATE_RESULTS = 6;
+// Set on the results screen while player 1/2 enters a name for a new record (func_80096C38).
+constexpr gpr NAME_ENTRY_P1 = (gpr)(int32_t)0x800E47B8;
+constexpr gpr NAME_ENTRY_P2 = (gpr)(int32_t)0x800E47BC;
 
 int min_retraces_between_swaps(uint8_t* rdram) {
     int32_t state = MEM_W(0, GAME_STATE);
     bool race_view = MEM_W(0, GAME_MODE) == 1 && state >= 3 && state <= 10;
-    return race_view ? 1 : 2;
+    bool name_entry = state == STATE_RESULTS && (MEM_W(0, NAME_ENTRY_P1) != 0 || MEM_W(0, NAME_ENTRY_P2) != 0);
+    return race_view && !name_entry ? 1 : 2;
 }
 
 } // namespace
