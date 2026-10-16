@@ -24,6 +24,13 @@ far. Newest findings go into the item they belong to.
   The usual fix is tagging their matrices (extended GBI `gEXMatrixGroup*`) or marking them as
   non-interpolated; `src/game/graphics.cpp` already enables the extended GBI for every frame.
 
+### Clouds missing on the eyecatch screen
+- Reported: the clouds do not show on the eyecatch (attract) screen; in races they are fine. Not
+  investigated yet. The sky dome fix in `src/game/graphics.cpp` (`show_sky_dome` lowers the dome's
+  depth) only runs in the race view, and the eyecatch is not race view, so it likely has the same
+  problem the races had before that fix: extend the fix to the eyecatch, or check the 60 FPS / LoD
+  changes by comparing against a build from before them.
+
 ### 60 FPS: things to check
 - Races only (game state `0x8016D928` 3..10): the race logic is timed by retraces, and the race
   clock matches real time at 60 FPS. Menu animations advance per frame, so menus stay at 30.

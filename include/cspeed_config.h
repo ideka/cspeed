@@ -10,14 +10,14 @@ namespace cspeed {
     inline const std::string program_name = "California Speed: Recompiled";
 
     namespace configkeys {
-        namespace general {
+        namespace enhancements {
+            inline const std::string id = "enhancements";
+            inline const std::string tab_name = "Enhancements";
             inline const std::string analog_controls = "analog_controls";
-        }
-        namespace graphics {
             inline const std::string level_of_detail = "level_of_detail";
-        }
-        namespace sound {
             inline const std::string sample_rate = "sample_rate";
+            inline const std::string arcade_textures = "arcade_textures";
+            inline const std::string arcade_data_path = "arcade_data_path";
         }
     }
 
@@ -28,6 +28,10 @@ namespace cspeed {
     bool full_analog_controls();
     bool max_level_of_detail();
     uint32_t audio_sample_rate();
+    bool arcade_textures_enabled();
+    // The arcade hard drive image last used for the arcade textures (empty if none).
+    std::filesystem::path arcade_data_path();
+    void set_arcade_data_path(const std::filesystem::path &path);
 };
 
 #endif
