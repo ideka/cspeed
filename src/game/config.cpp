@@ -31,18 +31,10 @@ bool cspeed::full_analog_controls() { return analog_controls_enabled; }
 bool cspeed::max_level_of_detail() { return max_lod_enabled; }
 uint32_t cspeed::audio_sample_rate() { return sample_rate_value; }
 
+namespace keys = cspeed::configkeys::enhancements;
+
+
 static void add_general_options(recomp::config::Config &config) {
-    config.add_bool_option(
-        cspeed::configkeys::general::analog_controls,
-        "Full Analog Controls",
-        "Steers with the full precision of the analog stick instead of the N64 stick's steps, and makes gas and "
-        "brake analog when they are bound to analog inputs, such as the triggers.",
-        true
-    );
-    config.add_option_change_callback(cspeed::configkeys::general::analog_controls,
-        [](recomp::config::ConfigValueVariant cur, recomp::config::ConfigValueVariant, recomp::config::OptionChangeContext) {
-            analog_controls_enabled = std::get<bool>(cur);
-        });
 }
 
 template <typename T = uint32_t>
@@ -61,22 +53,38 @@ T get_graphics_config_enum_value(const std::string& option_id) {
 }
 
 static void add_graphics_options(recomp::config::Config &config) {
+}
+
+// The game's enhancements, each optional. Changes apply right away (no Apply button), except the sample
+// rate, which needs a restart.
+static void add_enhancement_options(recomp::config::Config &config) {
+    using recomp::config::ConfigValueVariant;
+    using recomp::config::OptionChangeContext;
+
     config.add_bool_option(
-        cspeed::configkeys::graphics::level_of_detail,
+        keys::analog_controls,
+        "Full Analog Controls",
+        "Steers with the full precision of the analog stick instead of the N64 stick's steps, and makes gas and "
+        "brake analog when they are bound to analog inputs, such as the triggers.",
+        true
+    );
+    config.add_option_change_callback(keys::analog_controls, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        analog_controls_enabled = std::get<bool>(cur);
+    });
+
+    config.add_bool_option(
+        keys::level_of_detail,
         "Maximum Level of Detail",
         "Always draws models at their highest detail and does not hide distant objects early.",
         true
     );
-    config.add_option_change_callback(cspeed::configkeys::graphics::level_of_detail,
-        [](recomp::config::ConfigValueVariant cur, recomp::config::ConfigValueVariant, recomp::config::OptionChangeContext) {
-            max_lod_enabled = std::get<bool>(cur);
-        });
-}
+    config.add_option_change_callback(keys::level_of_detail, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        max_lod_enabled = std::get<bool>(cur);
+    });
 
-static void add_sound_options(recomp::config::Config &config) {
     static const std::vector<uint32_t> rates = { 22050, 32000, 44100, 48000 };
     config.add_enum_option(
-        cspeed::configkeys::sound::sample_rate,
+        keys::sample_rate,
         "Sample Rate",
         "The rate the game mixes its sound at. The original 22050 Hz loses the treble of the sound effects. "
         "<b>Takes effect after restarting the game.</b>",
@@ -88,11 +96,11 @@ static void add_sound_options(recomp::config::Config &config) {
         },
         3u
     );
-    config.add_option_change_callback(cspeed::configkeys::sound::sample_rate,
-        [](recomp::config::ConfigValueVariant cur, recomp::config::ConfigValueVariant, recomp::config::OptionChangeContext) {
-            uint32_t index = std::get<uint32_t>(cur);
-            sample_rate_value = index < rates.size() ? rates[index] : rates.back();
-        });
+    config.add_option_change_callback(keys::sample_rate, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        uint32_t index = std::get<uint32_t>(cur);
+        sample_rate_value = index < rates.size() ? rates[index] : rates.back();
+    });
+
 }
 
 static void set_control_defaults() {
@@ -146,8 +154,10 @@ void cspeed::init_config() {
     set_control_descriptions();
     recompui::config::create_controls_tab();
 
-    auto &sound_config = recompui::config::create_sound_tab();
-    add_sound_options(sound_config);
+    recompui::config::create_sound_tab();
+
+    auto &enhancements_config = recompui::config::create_config_tab(keys::tab_name, keys::id, false);
+    add_enhancement_options(enhancements_config);
 
     recompui::config::create_mods_tab();
 

@@ -4,6 +4,7 @@
 #include <array>
 
 #include "recomp.h"
+#include "cspeed_support.h"
 #include "librecomp/helpers.hpp"
 #include "ultramodern/config.hpp"
 #include "hle/rt64_vi.h"
@@ -453,12 +454,23 @@ void anchor_needle(uint8_t* rdram, uint32_t vtx_addr, uint32_t tri_addr, uint32_
 // black strips in it.
 constexpr float OVERSCAN_CROP = 1.0f / 24.0f;
 
+// Debug tools (F5): fog off, by zeroing the fog factor (G_MOVEWORD G_MW_FOG) in the frame's display list.
+void remove_fog(uint8_t* rdram, uint32_t dl) {
+    for (int i = 0; i < 20000; i++, dl += 8) {
+        gpr cmd = (gpr)(int32_t)dl;
+        uint32_t w0 = (uint32_t)MEM_W(0, cmd);
+        if ((w0 >> 24) == 0xDF) {
+            return;
+        }
+        if (w0 == 0xDB080000) {
+            MEM_W(4, cmd) = 0;
+        }
+    }
+}
+
 extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
     RT64::VI::setOverscanCrop(OVERSCAN_CROP);
     needle_drawn_last_frame = false;
-    if (!in_race_view(rdram)) {
-        return;
-    }
     // The task points at our prologue; the game's display list is the target of its branch.
     uint32_t prologue = (uint32_t)MEM_W(0x58, ctx->r16);
     if (prologue < PROLOGUE_BASE || prologue >= PROLOGUE_BASE + PROLOGUE_SLOTS * PROLOGUE_SIZE) {
@@ -466,6 +478,12 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     }
     uint32_t dl = (uint32_t)MEM_W(PROLOGUE_BRANCH_TARGET, (gpr)(int32_t)prologue);
     if ((dl & 0xFF000000) != 0x80000000) {
+        return;
+    }
+    if (cspeed::debug_no_fog()) {
+        remove_fog(rdram, dl);
+    }
+    if (!in_race_view(rdram)) {
         return;
     }
     show_sky_dome(rdram, dl);

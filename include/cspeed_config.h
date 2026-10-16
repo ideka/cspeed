@@ -10,13 +10,11 @@ namespace cspeed {
     inline const std::string program_name = "California Speed: Recompiled";
 
     namespace configkeys {
-        namespace general {
+        namespace enhancements {
+            inline const std::string id = "enhancements";
+            inline const std::string tab_name = "Enhancements";
             inline const std::string analog_controls = "analog_controls";
-        }
-        namespace graphics {
             inline const std::string level_of_detail = "level_of_detail";
-        }
-        namespace sound {
             inline const std::string sample_rate = "sample_rate";
         }
     }

@@ -24,6 +24,13 @@ far. Newest findings go into the item they belong to.
   The usual fix is tagging their matrices (extended GBI `gEXMatrixGroup*`) or marking them as
   non-interpolated; `src/game/graphics.cpp` already enables the extended GBI for every frame.
 
+### Clouds missing on the eyecatch screen
+- Reported: the clouds do not show on the eyecatch (attract) screen; in races they are fine. Not
+  investigated yet. The sky dome fix in `src/game/graphics.cpp` (`show_sky_dome` lowers the dome's
+  depth) only runs in the race view, and the eyecatch is not race view, so it likely has the same
+  problem the races had before that fix: extend the fix to the eyecatch, or check the 60 FPS / LoD
+  changes by comparing against a build from before them.
+
 ### 60 FPS: things to check
 - Races only (game state `0x8016D928` 3..10): the race logic is timed by retraces, and the race
   clock matches real time at 60 FPS. Menu animations advance per frame, so menus stay at 30.
@@ -43,6 +50,19 @@ far. Newest findings go into the item they belong to.
   seen yet.
 - Only Monterey has been checked closely; other tracks (sky dome fix, border removal) and
   split-screen (2 players) have not been checked in widescreen.
+
+### Extended draw distance (enhancement)
+- The game draws relative to the camera in 1/16 world units in 16-bit fixed point, so models more than
+  2048 units from the camera on an axis are not drawn. The debug tools' F7 draws at 1/4 scale
+  (`src/game/draw_distance.cpp`: model matrices and their range checks, terrain pieces, projection near
+  and far), which reaches 8192 units and looks the same. With F3 (culling off), F5 (fog off) and F6 (far
+  plane 20000) the whole track is visible.
+- Known bugs at 1/4 scale: car wheels disappear, and some bush billboards are too small and misplaced.
+  Other code still builds camera-relative coordinates x 16 itself (lui 0x4180 in func_800CA570,
+  func_800D1B8C, func_800B8084..func_800B8724, func_800C59A0, func_800C61EC, func_800B3B84, ...); those
+  need the same scale.
+- As an option ("Draw Distance: Extended"): 1/4 scale, far plane and draw distance pushed out, the
+  distance culls off, and the fog moved further out (scaled with the far plane) instead of removed.
 
 ## Gameplay
 

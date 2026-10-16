@@ -163,3 +163,116 @@ before_vram = 0x80081C6C
 func = "func_8001175C"
 text = "{ void cspeed_audio_pitch(uint8_t*, recomp_context*); cspeed_audio_pitch(rdram, ctx); }"
 before_vram = 0x800117E0
+
+# Debug tools (CSPEED_DEBUG=1, see src/game/debug_tools.cpp): free camera and race freeze.
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ void cspeed_debug_camera(uint8_t*, recomp_context*); cspeed_debug_camera(rdram, ctx); }"
+before_vram = 0x800CF110
+
+[[patches.hook]]
+func = "func_80094234"
+text = "{ int cspeed_debug_freeze(); if (cspeed_debug_freeze()) return; }"
+before_vram = 0x80094234
+
+[[patches.hook]]
+func = "func_8005434C"
+text = "{ void cspeed_debug_frame_time(uint8_t*, recomp_context*); cspeed_debug_frame_time(rdram, ctx); }"
+before_vram = 0x80054710
+
+[[patches.hook]]
+func = "func_80093014"
+text = "{ void cspeed_debug_track(uint8_t*, recomp_context*); cspeed_debug_track(rdram, ctx); }"
+before_vram = 0x800930A4
+
+[[patches.hook]]
+func = "func_8006F240"
+text = "{ void cspeed_debug_skip_intro(uint8_t*, recomp_context*); cspeed_debug_skip_intro(rdram, ctx); }"
+before_vram = 0x8006F240
+
+[[patches.hook]]
+func = "func_800CE61C"
+text = "{ int cspeed_debug_no_terrain_culling(); if (cspeed_debug_no_terrain_culling()) ctx->r2 = 1; }"
+before_vram = 0x800CE6BC
+
+[[patches.hook]]
+func = "func_800CDE40"
+text = "{ int cspeed_debug_no_terrain_culling(); if (cspeed_debug_no_terrain_culling()) ctx->r2 = 0; }"
+before_vram = 0x800CDEC8
+
+[[patches.hook]]
+func = "func_800CDE40"
+text = "{ int cspeed_debug_no_terrain_culling(); if (cspeed_debug_no_terrain_culling()) ctx->f2.fl = INFINITY; }"
+before_vram = 0x800CE3A0
+
+# World scale (draw distance experiment, see src/game/draw_distance.cpp).
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_world_scale(void); ctx->f2.fl = -2048.0f / cspeed_world_scale(); }"
+before_vram = 0x800CA978
+
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_world_scale(void); ctx->f0.fl = 2048.0f / cspeed_world_scale(); }"
+before_vram = 0x800CA99C
+
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_world_scale(void); ctx->f0.fl = 1048576.0f * cspeed_world_scale(); }"
+before_vram = 0x800CAA44
+
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_world_scale(void); ctx->f4.fl = 65536.0f * cspeed_world_scale(); }"
+before_vram = 0x800CAAB8
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ float cspeed_world_scale(void); ctx->f2.fl = -2048.0f / cspeed_world_scale(); }"
+before_vram = 0x800CAC5C
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ float cspeed_world_scale(void); ctx->f0.fl = 2048.0f / cspeed_world_scale(); }"
+before_vram = 0x800CAC80
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ float cspeed_world_scale(void); ctx->f0.fl = 1048576.0f * cspeed_world_scale(); }"
+before_vram = 0x800CAD28
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ float cspeed_world_scale(void); ctx->f4.fl = 65536.0f * cspeed_world_scale(); }"
+before_vram = 0x800CAD9C
+
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ float cspeed_world_scale(void); ctx->f2.fl = 16.0f * cspeed_world_scale(); }"
+before_vram = 0x800CF4E4
+
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ float cspeed_world_scale(void); ctx->f6.fl = 16.0f * cspeed_world_scale(); }"
+before_vram = 0x800CF540
+
+[[patches.hook]]
+func = "func_800CF0B4"
+text = "{ void cspeed_world_scale_ortho(uint8_t*, recomp_context*); cspeed_world_scale_ortho(rdram, ctx); }"
+before_vram = 0x800CF514
+
+[[patches.hook]]
+func = "func_800CE61C"
+text = "{ float cspeed_world_scale(void); if (ctx->r22 == 0) ctx->f2.fl *= cspeed_world_scale(); }"
+before_vram = 0x800CE96C
+
+[[patches.hook]]
+func = "func_800CE61C"
+text = "{ float cspeed_world_scale(void); if (ctx->r22 == 0) ctx->f2.fl *= cspeed_world_scale(); }"
+before_vram = 0x800CE9E0
+
+[[patches.hook]]
+func = "func_800CE61C"
+text = "{ float cspeed_world_scale(void); if (ctx->r22 == 0) ctx->f2.fl *= cspeed_world_scale(); }"
+before_vram = 0x800CEA54
+

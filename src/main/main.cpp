@@ -617,7 +617,11 @@ void on_launcher_init(recompui::LauncherMenu *menu) {
         supported_games[0].thumbnail_bytes,
         recompui::GameOptionsMenuLayout::Center
     );
-    game_options_menu->add_default_options();
+    game_options_menu->add_start_game_or_load_rom_option();
+    game_options_menu->add_setup_controls_option();
+    game_options_menu->add_settings_option();
+    game_options_menu->add_mods_option();
+    game_options_menu->add_exit_option();
 
     recompui::Element *menu_container = menu->get_menu_container();
     cspeed::launcher_animation_setup(menu);
@@ -702,20 +706,20 @@ bool get_n64_input_with_script(int player_index, uint16_t* buttons_out, float* x
     return ret;
 }
 
-// Scripted test runs (CSPEED_INPUT_SCRIPT) never rumble the real controller.
+// Scripted test runs (CSPEED_INPUT_SCRIPT) and debug mode never rumble the real controller.
 void set_rumble_unless_scripted(int controller_num, bool on) {
-    static const bool scripted = getenv("CSPEED_INPUT_SCRIPT") != nullptr;
+    static const bool scripted = getenv("CSPEED_INPUT_SCRIPT") != nullptr || cspeed::debug_tools_enabled();
     recompinput::set_rumble(controller_num, on && !scripted);
 }
 
-// Debug aid: with CSPEED_AUTOSTART=1 the launcher starts the game on its first frame (if the ROM is
-// already set up), so test runs need no clicking.
+// Debug aid: with CSPEED_AUTOSTART=1 (or the debug tools, CSPEED_DEBUG=1) the launcher starts the game
+// on its first frame (if the ROM is already set up), so test runs need no clicking.
 void on_launcher_update(recompui::LauncherMenu *menu) {
     static bool autostart_done = false;
     if (!autostart_done) {
         autostart_done = true;
         recomp::GameEntry& game = supported_games[0];
-        if (getenv("CSPEED_AUTOSTART") && recomp::is_rom_valid(game.game_id)) {
+        if ((getenv("CSPEED_AUTOSTART") || cspeed::debug_tools_enabled()) && recomp::is_rom_valid(game.game_id)) {
             recompui::update_game_mod_id(game.mod_game_id);
             recomp::start_game(game.game_id, {});
             recompui::hide_all_contexts();
