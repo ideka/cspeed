@@ -24,11 +24,13 @@
 namespace {
     std::atomic<bool> analog_controls_enabled = true;
     std::atomic<bool> max_lod_enabled = true;
+    std::atomic<bool> skip_copyright_enabled = false;
     std::atomic<uint32_t> sample_rate_value = 48000;
 }
 
 bool cspeed::full_analog_controls() { return analog_controls_enabled; }
 bool cspeed::max_level_of_detail() { return max_lod_enabled; }
+bool cspeed::skip_copyright_screen() { return skip_copyright_enabled; }
 uint32_t cspeed::audio_sample_rate() { return sample_rate_value; }
 
 namespace keys = cspeed::configkeys::enhancements;
@@ -80,6 +82,16 @@ static void add_enhancement_options(recomp::config::Config &config) {
     );
     config.add_option_change_callback(keys::level_of_detail, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
         max_lod_enabled = std::get<bool>(cur);
+    });
+
+    config.add_bool_option(
+        keys::skip_copyright,
+        "Skip Copyright Screen",
+        "Goes straight to the intro at startup, without the copyright screen.",
+        false
+    );
+    config.add_option_change_callback(keys::skip_copyright, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        skip_copyright_enabled = std::get<bool>(cur);
     });
 
     static const std::vector<uint32_t> rates = { 22050, 32000, 44100, 48000 };

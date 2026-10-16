@@ -16,6 +16,7 @@ namespace cspeed {
             inline const std::string analog_controls = "analog_controls";
             inline const std::string level_of_detail = "level_of_detail";
             inline const std::string sample_rate = "sample_rate";
+            inline const std::string skip_copyright = "skip_copyright";
         }
     }
 
@@ -26,6 +27,7 @@ namespace cspeed {
     bool full_analog_controls();
     bool max_level_of_detail();
     uint32_t audio_sample_rate();
+    bool skip_copyright_screen();
 };
 
 #endif

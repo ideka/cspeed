@@ -25,6 +25,7 @@
 #include <SDL.h>
 
 #include "recomp.h"
+#include "cspeed_config.h"
 #include "cspeed_support.h"
 #include "recompinput/input_state.h"
 
@@ -169,9 +170,14 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
 // Called at the start of the front end's update (func_8006F240): moves through the startup screens
 // (copyright, intro) as soon as each one has loaded, in the game's own order, to the title screen. With
 // CSPEED_TRACK, it goes on through the title and from the main menu straight to loading the race (game
-// mode 1, state 7) with the default car and controls, skipping the menus.
+// mode 1, state 7) with the default car and controls, skipping the menus. Without the debug tools, only
+// the copyright screen is skipped, if the Skip Copyright Screen option is on.
 extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
     if (!enabled) {
+        int32_t mode = MEM_W(0, GAME_MODE);
+        if (cspeed::skip_copyright_screen() && mode == MODE_COPYRIGHT && mode == MEM_H(0, LOADED_SCREEN)) {
+            MEM_W(0, GAME_MODE) = MODE_INTRO;
+        }
         return;
     }
     static const bool quick_race = getenv("CSPEED_TRACK") != nullptr;
