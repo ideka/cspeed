@@ -663,15 +663,7 @@ void set_default_controller_mappings() {
 bool get_n64_input_with_script(int player_index, uint16_t* buttons_out, float* x_out, float* y_out) {
     bool ret = recompinput::profiles::get_n64_input(player_index, buttons_out, x_out, y_out);
     cspeed::set_host_stick(player_index, *x_out, *y_out);
-    // With the debug tools, CSPEED_TRACK alone goes through the menus to a race (on that track).
-    static const char* script = [] {
-        const char* own = getenv("CSPEED_INPUT_SCRIPT");
-        const char* track = getenv("CSPEED_TRACK");
-        if (own == nullptr && track != nullptr && cspeed::debug_tools_enabled()) {
-            return "3:S,5:S,7:A,9:A,11:A,13:A,15:A,17:A,19:A";
-        }
-        return own;
-    }();
+    static const char* script = getenv("CSPEED_INPUT_SCRIPT");
     if (script == nullptr || player_index != 0) {
         return ret;
     }

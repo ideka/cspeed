@@ -3,8 +3,8 @@
 //         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down, arrow keys
 //         also turn, hold Shift to go faster.
 //   F2  arcade textures on/off, without changing the option.
-// CSPEED_TRACK=<n> starts the race on track n (0-15, locked ones too); without an input script of its
-// own (CSPEED_INPUT_SCRIPT) it also goes through the menus to that race by itself.
+// CSPEED_TRACK=<n> goes from startup straight into a race on track n (0-15, locked ones too), skipping
+// the title and the menus; it also replaces the track of races started from the menus.
 // It also skips the startup screens (copyright, intro) to the title screen, and turns
 // rumble off (src/main/main.cpp).
 //
@@ -22,6 +22,7 @@
 #include "recomp.h"
 #include "cspeed_arcade.h"
 #include "cspeed_support.h"
+#include "recompinput/input_state.h"
 
 namespace {
 
@@ -29,7 +30,9 @@ constexpr gpr CAMERAS = (gpr)(int32_t)0x801531BC;
 constexpr int32_t CAMERA_SIZE = 0x30;
 constexpr int32_t CAMERA_UP = 0x00, CAMERA_FORWARD = 0x0C, CAMERA_POS = 0x18;
 constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;
-constexpr int32_t MODE_COPYRIGHT = 15, MODE_TITLE = 17, MODE_INTRO = 18;
+constexpr int32_t MODE_MAIN_MENU = 0, MODE_RACE = 1, MODE_COPYRIGHT = 15, MODE_TITLE = 17, MODE_INTRO = 18;
+constexpr gpr GAME_STATE = (gpr)(int32_t)0x8016D928;
+constexpr int32_t STATE_LOAD_RACE = 7;
 constexpr gpr LOADED_SCREEN = (gpr)(int32_t)0x800E2BB8;  // s16: the mode whose screen is loaded
 
 const bool enabled = [] { const char *v = getenv("CSPEED_DEBUG"); return v != nullptr && v[0] == '1'; }();
@@ -70,8 +73,8 @@ void start_free_camera(uint8_t *rdram) {
 void fly(uint8_t *rdram, const Uint8 *keys) {
     float speed = (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT]) ? 12.0f : 2.0f;
     float turn = 0.03f, mouse = 0.003f;
-    int dx = 0, dy = 0;
-    SDL_GetRelativeMouseState(&dx, &dy);
+    float dx = 0, dy = 0;
+    recompinput::get_raw_mouse_deltas(&dx, &dy);
     yaw += dx * mouse;
     pitch -= dy * mouse;
     if (keys[SDL_SCANCODE_LEFT]) yaw -= turn;
@@ -112,9 +115,8 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
     if (pressed(keys, SDL_SCANCODE_F1)) {
         free_camera = !free_camera;
         if (free_camera) start_free_camera(rdram);
-        SDL_SetRelativeMouseMode(free_camera ? SDL_TRUE : SDL_FALSE);
-        int ignored;
-        SDL_GetRelativeMouseState(&ignored, &ignored);  // drop the motion from before
+        // Capture the mouse (the input layer's event loop owns the cursor; it applies this).
+        recompinput::set_cursor_lock_override(free_camera);
     }
     if (pressed(keys, SDL_SCANCODE_F2)) {
         arcade_textures_hidden = !arcade_textures_hidden;
@@ -126,19 +128,29 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
 }
 
 // Called at the start of the front end's update (func_8006F240): moves through the startup screens
-// (copyright, intro) as soon as each one has loaded, in the game's own order, to the title screen. (Going
-// on to the main menu this way leaves it ignoring input: pressing Start on the title is needed.)
+// (copyright, intro) as soon as each one has loaded, in the game's own order, to the title screen. With
+// CSPEED_TRACK, it goes on through the title and from the main menu straight to loading the race (game
+// mode 1, state 7) with the default car, skipping the menus. (Going on from the title by itself leaves the
+// main menu ignoring input, so without CSPEED_TRACK the title still needs Start.)
 extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
     if (!enabled) {
         return;
     }
+    static const bool quick_race = getenv("CSPEED_TRACK") != nullptr;
+    static bool raced = false;
     int32_t mode = MEM_W(0, GAME_MODE);
-    int32_t loaded = MEM_H(0, LOADED_SCREEN);
-    if (mode != loaded) {
+    if (quick_race && !raced && mode == MODE_MAIN_MENU) {
+        raced = true;
+        MEM_W(0, GAME_MODE) = MODE_RACE;
+        MEM_W(0, GAME_STATE) = STATE_LOAD_RACE;
+        return;
+    }
+    if (mode != MEM_H(0, LOADED_SCREEN)) {
         return;
     }
     if (mode == MODE_COPYRIGHT) MEM_W(0, GAME_MODE) = MODE_INTRO;
     else if (mode == MODE_INTRO) MEM_W(0, GAME_MODE) = MODE_TITLE;
+    else if (mode == MODE_TITLE && quick_race && !raced) MEM_W(0, GAME_MODE) = MODE_MAIN_MENU;
 }
 
 bool cspeed::debug_tools_enabled() {
