@@ -3,6 +3,8 @@
 //         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down, arrow keys
 //         also turn, hold Shift to go faster.
 //   F2  arcade textures on/off, without changing the option.
+//   F4  (in the free camera) let the race run / freeze it again. The game only draws the part of the
+//         track around the car, so to see the rest, keep it running and drive with the controller.
 // CSPEED_TRACK=<n> goes from startup straight into a race on track n (0-15, locked ones too), skipping
 // the title and the menus; it also replaces the track of races started from the menus.
 // It also skips the startup screens (copyright, intro) to the title screen, and turns
@@ -103,6 +105,7 @@ void fly(uint8_t *rdram, const Uint8 *keys) {
 }
 
 bool arcade_textures_hidden = false;
+bool race_running = false;  // in the free camera
 
 } // namespace
 
@@ -114,6 +117,7 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
     const Uint8 *keys = SDL_GetKeyboardState(nullptr);
     if (pressed(keys, SDL_SCANCODE_F1)) {
         free_camera = !free_camera;
+        race_running = false;
         if (free_camera) start_free_camera(rdram);
         // Capture the mouse (the input layer's event loop owns the cursor; it applies this).
         recompinput::set_cursor_lock_override(free_camera);
@@ -121,6 +125,9 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
     if (pressed(keys, SDL_SCANCODE_F2)) {
         arcade_textures_hidden = !arcade_textures_hidden;
         cspeed::arcade::set_hidden(arcade_textures_hidden);
+    }
+    if (pressed(keys, SDL_SCANCODE_F4) && free_camera) {
+        race_running = !race_running;
     }
     if (free_camera) {
         fly(rdram, keys);
@@ -160,7 +167,7 @@ bool cspeed::debug_tools_enabled() {
 // Called after the graphics thread stores the frame time (func_8005434C): stops the clock while frozen,
 // so the race timer and animations stop too.
 extern "C" void cspeed_debug_frame_time(uint8_t *rdram, recomp_context *ctx) {
-    if (enabled && free_camera) {
+    if (enabled && free_camera && !race_running) {
         MEM_W(0, (gpr)(int32_t)0x80020EA8) = 0;
     }
 }
@@ -176,5 +183,5 @@ extern "C" void cspeed_debug_track(uint8_t *rdram, recomp_context *ctx) {
 
 // Called at the start of the race update (func_80094234): returns true to skip it.
 extern "C" int cspeed_debug_freeze() {
-    return enabled && free_camera;
+    return enabled && free_camera && !race_running;
 }
