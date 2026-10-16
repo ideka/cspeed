@@ -20,8 +20,10 @@ constexpr uint32_t OBJECT_FORCED_LEVEL = 4;  // object flags (+0): use the level
 
 // Called before the draw-distance check ($f0 = the last level's distance * scale, compared with the
 // camera distance in $f2).
+extern "C" int cspeed_debug_no_terrain_culling();
+
 extern "C" void cspeed_lod_cull(uint8_t* rdram, recomp_context* ctx) {
-    if (cspeed::max_level_of_detail()) {
+    if (cspeed::max_level_of_detail() || cspeed_debug_no_terrain_culling()) {
         ctx->f0.fl = INFINITY;
     }
 }

@@ -3,8 +3,11 @@
 //         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down, arrow keys
 //         also turn, hold Shift to go faster.
 //   F2  arcade textures on/off, without changing the option.
-//   F4  (in the free camera) let the race run / freeze it again. The game only draws the part of the
-//         track around the car, so to see the rest, keep it running and drive with the controller.
+//   F3  culling off/on: draws what the game hides from the camera: scene nodes with the camera's hidden
+//         bit (0x400 << camera, func_800CDE40) or beyond the draw distance (its distance check), and
+//         chunks without its visible bit (func_800CE61C).
+//   F5  fog off/on (src/game/graphics.cpp).
+//   F6  far view: the camera's far plane (and the game's draw distance) from 2000 to 20000.
 // CSPEED_TRACK=<n> goes from startup straight into a race on track n (0-15, locked ones too), skipping
 // the title and the menus; it also replaces the track of races started from the menus.
 // It also skips the startup screens (copyright, intro) to the title screen, and turns
@@ -105,7 +108,13 @@ void fly(uint8_t *rdram, const Uint8 *keys) {
 }
 
 bool arcade_textures_hidden = false;
-bool race_running = false;  // in the free camera
+bool no_terrain_culling = false;
+bool no_fog = false;
+bool far_view = false;
+float saved_far = 0, saved_draw_distance = 0;
+constexpr gpr CAMERA_FAR = (gpr)(int32_t)(0x800F93F0 + 0x38);  // camera 0's projection far plane
+constexpr gpr DRAW_DISTANCE = (gpr)(int32_t)0x80142764;       // nodes beyond it are not drawn
+constexpr float FAR_VIEW = 20000.0f;
 
 } // namespace
 
@@ -117,7 +126,6 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
     const Uint8 *keys = SDL_GetKeyboardState(nullptr);
     if (pressed(keys, SDL_SCANCODE_F1)) {
         free_camera = !free_camera;
-        race_running = false;
         if (free_camera) start_free_camera(rdram);
         // Capture the mouse (the input layer's event loop owns the cursor; it applies this).
         recompinput::set_cursor_lock_override(free_camera);
@@ -126,8 +134,27 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
         arcade_textures_hidden = !arcade_textures_hidden;
         cspeed::arcade::set_hidden(arcade_textures_hidden);
     }
-    if (pressed(keys, SDL_SCANCODE_F4) && free_camera) {
-        race_running = !race_running;
+    if (pressed(keys, SDL_SCANCODE_F3)) {
+        no_terrain_culling = !no_terrain_culling;
+        printf("Terrain culling %s\n", no_terrain_culling ? "off" : "on");
+    }
+    if (pressed(keys, SDL_SCANCODE_F5)) {
+        no_fog = !no_fog;
+    }
+    if (pressed(keys, SDL_SCANCODE_F6)) {
+        far_view = !far_view;
+        if (far_view) {
+            saved_far = get_f32(rdram, CAMERA_FAR, 0);
+            saved_draw_distance = get_f32(rdram, DRAW_DISTANCE, 0);
+        }
+        else {
+            set_f32(rdram, CAMERA_FAR, 0, saved_far);
+            set_f32(rdram, DRAW_DISTANCE, 0, saved_draw_distance);
+        }
+    }
+    if (far_view) {
+        set_f32(rdram, CAMERA_FAR, 0, FAR_VIEW);
+        set_f32(rdram, DRAW_DISTANCE, 0, FAR_VIEW);
     }
     if (free_camera) {
         fly(rdram, keys);
@@ -160,6 +187,10 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
     else if (mode == MODE_TITLE && quick_race && !raced) MEM_W(0, GAME_MODE) = MODE_MAIN_MENU;
 }
 
+bool cspeed::debug_no_fog() {
+    return enabled && no_fog;
+}
+
 bool cspeed::debug_tools_enabled() {
     return enabled;
 }
@@ -167,7 +198,7 @@ bool cspeed::debug_tools_enabled() {
 // Called after the graphics thread stores the frame time (func_8005434C): stops the clock while frozen,
 // so the race timer and animations stop too.
 extern "C" void cspeed_debug_frame_time(uint8_t *rdram, recomp_context *ctx) {
-    if (enabled && free_camera && !race_running) {
+    if (enabled && free_camera) {
         MEM_W(0, (gpr)(int32_t)0x80020EA8) = 0;
     }
 }
@@ -181,7 +212,14 @@ extern "C" void cspeed_debug_track(uint8_t *rdram, recomp_context *ctx) {
     }
 }
 
+// Called in the terrain drawing (func_800CE61C) where a chunk's visibility bit for the camera is
+// tested: returns true to draw it anyway.
+extern "C" int cspeed_debug_no_terrain_culling() {
+    return enabled && no_terrain_culling;
+}
+
 // Called at the start of the race update (func_80094234): returns true to skip it.
 extern "C" int cspeed_debug_freeze() {
-    return enabled && free_camera && !race_running;
+    return enabled && free_camera;
 }
+
