@@ -205,45 +205,57 @@ func = "func_800CDE40"
 text = "{ int cspeed_debug_no_terrain_culling(); if (cspeed_debug_no_terrain_culling()) ctx->f2.fl = INFINITY; }"
 before_vram = 0x800CE3A0
 
-# World scale (draw distance experiment, see src/game/draw_distance.cpp).
+# World scale (draw distance experiment, see src/game/draw_distance.cpp). The model matrix builders
+# record at their start whether they build a camera-relative matrix (scaled) or one relative to a parent
+# node (not scaled: the parent's already is).
 [[patches.hook]]
 func = "func_800CA90C"
-text = "{ float cspeed_world_scale(void); ctx->f2.fl = -2048.0f / cspeed_world_scale(); }"
+text = "{ void cspeed_matrix_begin(int); cspeed_matrix_begin(ctx->r7 != 0); }"
+before_vram = 0x800CA90C
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ void cspeed_matrix_begin(int); cspeed_matrix_begin(MEM_W(0x10, ctx->r29) != 0); }"
+before_vram = 0x800CABEC
+
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_matrix_scale(void); ctx->f2.fl = -2048.0f / cspeed_matrix_scale(); }"
 before_vram = 0x800CA978
 
 [[patches.hook]]
 func = "func_800CA90C"
-text = "{ float cspeed_world_scale(void); ctx->f0.fl = 2048.0f / cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f0.fl = 2048.0f / cspeed_matrix_scale(); }"
 before_vram = 0x800CA99C
 
 [[patches.hook]]
 func = "func_800CA90C"
-text = "{ float cspeed_world_scale(void); ctx->f0.fl = 1048576.0f * cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f0.fl = 1048576.0f * cspeed_matrix_scale(); }"
 before_vram = 0x800CAA44
 
 [[patches.hook]]
 func = "func_800CA90C"
-text = "{ float cspeed_world_scale(void); ctx->f4.fl = 65536.0f * cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f4.fl = 65536.0f * cspeed_matrix_scale(); }"
 before_vram = 0x800CAAB8
 
 [[patches.hook]]
 func = "func_800CABEC"
-text = "{ float cspeed_world_scale(void); ctx->f2.fl = -2048.0f / cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f2.fl = -2048.0f / cspeed_matrix_scale(); }"
 before_vram = 0x800CAC5C
 
 [[patches.hook]]
 func = "func_800CABEC"
-text = "{ float cspeed_world_scale(void); ctx->f0.fl = 2048.0f / cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f0.fl = 2048.0f / cspeed_matrix_scale(); }"
 before_vram = 0x800CAC80
 
 [[patches.hook]]
 func = "func_800CABEC"
-text = "{ float cspeed_world_scale(void); ctx->f0.fl = 1048576.0f * cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f0.fl = 1048576.0f * cspeed_matrix_scale(); }"
 before_vram = 0x800CAD28
 
 [[patches.hook]]
 func = "func_800CABEC"
-text = "{ float cspeed_world_scale(void); ctx->f4.fl = 65536.0f * cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f4.fl = 65536.0f * cspeed_matrix_scale(); }"
 before_vram = 0x800CAD9C
 
 [[patches.hook]]

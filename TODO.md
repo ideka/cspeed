@@ -57,10 +57,10 @@ far. Newest findings go into the item they belong to.
   (`src/game/draw_distance.cpp`: model matrices and their range checks, terrain pieces, projection near
   and far), which reaches 8192 units and looks the same. With F3 (culling off), F5 (fog off) and F6 (far
   plane 20000) the whole track is visible.
-- Known bugs at 1/4 scale: car wheels disappear, and some bush billboards are too small and misplaced.
-  Other code still builds camera-relative coordinates x 16 itself (lui 0x4180 in func_800CA570,
-  func_800D1B8C, func_800B8084..func_800B8724, func_800C59A0, func_800C61EC, func_800B3B84, ...); those
-  need the same scale.
+- Child nodes (wheels, some billboards) get matrices relative to their parent, which are not scaled
+  (the parent's already is): that was the vanishing wheels and the small, misplaced bush billboards.
+  Every other x16 site found draws under a scaled matrix or as terrain (bounding boxes for G_CULLDL,
+  particles and skid marks), or is not a position (timers, setup, fog and sky colours).
 - As an option ("Draw Distance: Extended"): 1/4 scale, far plane and draw distance pushed out, the
   distance culls off, and the fog moved further out (scaled with the far plane) instead of removed.
 
