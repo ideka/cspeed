@@ -13,6 +13,8 @@ namespace cspeed {
     void open_file_dialog(std::function<void(bool success, const std::filesystem::path& path)> callback);
     void open_file_dialog_multiple(std::function<void(bool success, const std::list<std::filesystem::path>& paths)> callback);
     void show_error_message_box(const char *title, const char *message);
+    // The stick as the input layer gave it (-1 to 1), for the full analog controls.
+    void set_host_stick(int controller, float x, float y);
 
 // Apple specific methods that usually require Objective-C. Implemented in support_apple.mm.
 #ifdef __APPLE__

@@ -623,28 +623,30 @@ void on_launcher_init(recompui::LauncherMenu *menu) {
     cspeed::launcher_animation_setup(menu);
 }
 
-// Default controller layout: A on the bottom face button, B on the left and right ones, C-Up (the only
-// C button the game really uses) on the top one, L/R on the bumpers with R also on the right trigger.
+// Default controller layout: gas (A) on the bottom face button and the right trigger, brake (B) on the
+// left face button and the left trigger (analog with the full analog controls option), Z on the right
+// face button, R on the top one and the right stick click, L on the left stick click, and C-Up (the only
+// C button the game really uses) on the right stick and the left bumper.
 void set_default_controller_mappings() {
     using recompinput::GameInput;
     using recompinput::InputField;
     auto set = recompinput::set_default_mapping_for_controller;
-    set(GameInput::A,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
+    set(GameInput::A,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH),
+                              InputField::controller_analog(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, true) });
     set(GameInput::B,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_WEST),
-                              InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
-    set(GameInput::L,       { InputField::controller_digital(SDL_CONTROLLER_BUTTON_LEFTSHOULDER) });
-    set(GameInput::R,       { InputField::controller_analog(SDL_CONTROLLER_AXIS_TRIGGERRIGHT, true),
-                              InputField::controller_digital(SDL_CONTROLLER_BUTTON_RIGHTSHOULDER) });
-    set(GameInput::Z,       { InputField::controller_analog(SDL_CONTROLLER_AXIS_TRIGGERLEFT, true) });
+                              InputField::controller_analog(SDL_CONTROLLER_AXIS_TRIGGERLEFT, true) });
+    set(GameInput::Z,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
+    set(GameInput::L,       { InputField::controller_digital(SDL_CONTROLLER_BUTTON_LEFTSTICK) });
+    set(GameInput::R,       { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_NORTH),
+                              InputField::controller_digital(SDL_CONTROLLER_BUTTON_RIGHTSTICK) });
     set(GameInput::C_UP,    { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTY, false),
-                              InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_NORTH) });
+                              InputField::controller_digital(SDL_CONTROLLER_BUTTON_LEFTSHOULDER) });
     set(GameInput::C_DOWN,  { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTY, true) });
     set(GameInput::C_LEFT,  { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTX, false) });
     set(GameInput::C_RIGHT, { InputField::controller_analog(SDL_CONTROLLER_AXIS_RIGHTX, true) });
-    // Recomp menus follow the same layout: accept on the bottom button, back on the left and right ones.
+    // Recomp menus: accept on the bottom face button, back on the left one.
     set(GameInput::ACCEPT_MENU, { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_SOUTH) });
-    set(GameInput::BACK_MENU,   { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_WEST),
-                                  InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_EAST) });
+    set(GameInput::BACK_MENU,   { InputField::controller_digital(recompinput::SDL_CONTROLLER_BUTTON_WEST) });
 }
 
 // Debug aid: CSPEED_INPUT_SCRIPT="3:S,5:A,6.5:B/2" presses N64 buttons on controller 1 at the given
@@ -653,6 +655,7 @@ void set_default_controller_mappings() {
 // Buttons: A B Z S(tart) L R U/D/<\/> (d-pad) and u d l r (C buttons).
 bool get_n64_input_with_script(int player_index, uint16_t* buttons_out, float* x_out, float* y_out) {
     bool ret = recompinput::profiles::get_n64_input(player_index, buttons_out, x_out, y_out);
+    cspeed::set_host_stick(player_index, *x_out, *y_out);
     static const char* script = getenv("CSPEED_INPUT_SCRIPT");
     if (script == nullptr || player_index != 0) {
         return ret;

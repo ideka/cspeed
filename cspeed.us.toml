@@ -120,3 +120,46 @@ before_vram = 0x80001008
 func = "__scHandleRetrace"
 text = "{ int cspeed_swap_too_soon(uint8_t*, recomp_context*); ctx->r2 = cspeed_swap_too_soon(rdram, ctx); }"
 before_vram = 0x80000C60
+
+# Audio sample rate: the audio setup asks osAiSetFrequency for 22050 Hz and sizes everything from the
+# result; ask for the rate from the sound options instead (see src/game/audio.cpp).
+[[patches.hook]]
+func = "func_80056A78"
+text = "{ void cspeed_set_audio_rate(uint8_t*, recomp_context*); cspeed_set_audio_rate(rdram, ctx); }"
+before_vram = 0x80056C08
+
+[[patches.hook]]
+func = "func_80056A78"
+text = "{ void cspeed_after_audio_init(uint8_t*, recomp_context*); cspeed_after_audio_init(rdram, ctx); }"
+before_vram = 0x80056FA8
+
+# Level of detail: skip the model draw-distance check and always pick the most detailed level
+# (see src/game/lod.cpp).
+[[patches.hook]]
+func = "func_800CD8E4"
+text = "{ void cspeed_lod_cull(uint8_t*, recomp_context*); cspeed_lod_cull(rdram, ctx); }"
+before_vram = 0x800CDAC0
+
+[[patches.hook]]
+func = "func_800CD8E4"
+text = "{ void cspeed_lod_level(uint8_t*, recomp_context*); cspeed_lod_level(rdram, ctx); }"
+before_vram = 0x800CDB4C
+
+# Full analog controls: steering from the unrounded stick, gas and brake from how far their buttons
+# are pressed (see src/game/analog.cpp).
+[[patches.hook]]
+func = "func_80081C7C"
+text = "{ void cspeed_analog_steering(uint8_t*, recomp_context*); cspeed_analog_steering(rdram, ctx); }"
+before_vram = 0x80081CD8
+
+[[patches.hook]]
+func = "func_80081AC0"
+text = "{ void cspeed_analog_pedals(uint8_t*, recomp_context*); cspeed_analog_pedals(rdram, ctx); }"
+before_vram = 0x80081C6C
+
+# The game's pitches assume the original rate: scale them in the resampler's set-pitch case
+# (alResampleParam, AL_FILTER_SET_PITCH).
+[[patches.hook]]
+func = "func_8001175C"
+text = "{ void cspeed_audio_pitch(uint8_t*, recomp_context*); cspeed_audio_pitch(rdram, ctx); }"
+before_vram = 0x800117E0

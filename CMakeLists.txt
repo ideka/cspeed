@@ -163,6 +163,9 @@ set (SOURCES
     ${CMAKE_SOURCE_DIR}/src/game/rom_decompression.cpp
     ${CMAKE_SOURCE_DIR}/src/game/graphics.cpp
     ${CMAKE_SOURCE_DIR}/src/game/framerate.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/audio.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/lod.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/analog.cpp
 
     ${CMAKE_SOURCE_DIR}/rsp/aspMain.cpp
 )

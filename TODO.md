@@ -44,26 +44,7 @@ far. Newest findings go into the item they belong to.
 - Only Monterey has been checked closely; other tracks (sky dome fix, border removal) and
   split-screen (2 players) have not been checked in widescreen.
 
-### Remove level of detail (LoD)
-- Distant objects and scenery switch to lower-detail models or pop in at a set distance. At modern
-  resolutions this is very visible; look into forcing the highest detail model and raising or removing
-  the draw distance cutoff. Needs the game's LoD selection and culling code identified.
-
-## Audio
-
-### Improve music quality
-- Explore whether the music can sound better than the original output: e.g. a higher output sample
-  rate, better resampling/interpolation in the audio path, or the game's own audio settings (sample
-  rate, voice count) set to higher values. Start by identifying the music player (see
-  `musicLoaderThread` / `musicLoadRequest` in `symbols/functions.json`) and the audio format it uses.
-
 ## Gameplay
-
-### More precise steering
-- Steering feels coarse with a modern analog stick. Things to look at: the runtime's stick conversion
-  (`convert_to_n64_range` in ultramodern `input.cpp` maps to the N64's octagonal +-82 range), any
-  deadzone/response curve the game applies on top, and whether the game quantizes the stick value
-  before using it. A configurable response curve or deadzone in the recomp could help.
 
 ### Load the first Controller Pak profile on startup
 - Right now the player has to pick LOAD on the 1 Player screen every session. Automatically load the
