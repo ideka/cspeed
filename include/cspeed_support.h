@@ -15,6 +15,8 @@ namespace cspeed {
     void show_error_message_box(const char *title, const char *message);
     // The stick as the input layer gave it (-1 to 1), for the full analog controls.
     void set_host_stick(int controller, float x, float y);
+    // CSPEED_DEBUG=1 (src/game/debug_tools.cpp).
+    bool debug_tools_enabled();
 
 // Apple specific methods that usually require Objective-C. Implemented in support_apple.mm.
 #ifdef __APPLE__

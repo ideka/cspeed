@@ -184,3 +184,8 @@ before_vram = 0x80054710
 func = "func_80093014"
 text = "{ void cspeed_debug_track(uint8_t*, recomp_context*); cspeed_debug_track(rdram, ctx); }"
 before_vram = 0x800930A4
+
+[[patches.hook]]
+func = "func_8006F240"
+text = "{ void cspeed_debug_skip_intro(uint8_t*, recomp_context*); cspeed_debug_skip_intro(rdram, ctx); }"
+before_vram = 0x8006F240

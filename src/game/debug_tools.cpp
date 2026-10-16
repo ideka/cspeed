@@ -1,11 +1,15 @@
 // Debug tools (enabled with CSPEED_DEBUG=1), driven from the keyboard while the game window is focused:
-//   F1  free camera: freezes the race and flies the camera around (camera 0).
-//         W/S forward/back, A/D sideways, R/F up/down, arrow keys turn, hold Shift to go faster.
+//   F1  free camera: freezes the race and flies the camera around (camera 0). The mouse turns it (it is
+//         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down, arrow keys
+//         also turn, hold Shift to go faster.
 //   F2  arcade textures on/off, without changing the option.
+// CSPEED_TRACK=<n> starts the race on track n (0-15, locked ones too); without an input script of its
+// own (CSPEED_INPUT_SCRIPT) it also goes through the menus to that race by itself.
+// It also skips the startup screens (copyright, intro) to the title screen, and turns
+// rumble off (src/main/main.cpp).
 //
-// The camera (one 0x30-byte block per camera at 0x801531BC) holds an up vector (+0x00), the vector the
-// view looks along, negated (+0x0C: func_800CF0B4 builds the view with guLookAt from it towards the
-// origin), and the position (+0x18, also used for level of detail and culling). The free camera writes
+// The camera (one 0x30-byte block per camera at 0x801531BC) holds an up vector (+0x00), the direction
+// the view looks along (+0x0C), and the position (+0x18, also used for level of detail and culling). The free camera writes
 // them for camera 0 after the game updates them each frame. The race is frozen by skipping its update
 // (func_80094234, the main loop's racing state) and stopping the frame time (0x80020EA8), so everything
 // else keeps drawing.
@@ -17,12 +21,16 @@
 
 #include "recomp.h"
 #include "cspeed_arcade.h"
+#include "cspeed_support.h"
 
 namespace {
 
 constexpr gpr CAMERAS = (gpr)(int32_t)0x801531BC;
 constexpr int32_t CAMERA_SIZE = 0x30;
-constexpr int32_t CAMERA_UP = 0x00, CAMERA_BACK = 0x0C, CAMERA_POS = 0x18;
+constexpr int32_t CAMERA_UP = 0x00, CAMERA_FORWARD = 0x0C, CAMERA_POS = 0x18;
+constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;
+constexpr int32_t MODE_COPYRIGHT = 15, MODE_TITLE = 17, MODE_INTRO = 18;
+constexpr gpr LOADED_SCREEN = (gpr)(int32_t)0x800E2BB8;  // s16: the mode whose screen is loaded
 
 const bool enabled = [] { const char *v = getenv("CSPEED_DEBUG"); return v != nullptr && v[0] == '1'; }();
 
@@ -51,7 +59,7 @@ bool pressed(const Uint8 *keys, SDL_Scancode key) {
 
 void start_free_camera(uint8_t *rdram) {
     for (int i = 0; i < 3; i++) pos[i] = get_f32(rdram, CAMERAS, CAMERA_POS + i * 4);
-    float fx = -get_f32(rdram, CAMERAS, CAMERA_BACK), fy = -get_f32(rdram, CAMERAS, CAMERA_BACK + 4), fz = -get_f32(rdram, CAMERAS, CAMERA_BACK + 8);
+    float fx = get_f32(rdram, CAMERAS, CAMERA_FORWARD), fy = get_f32(rdram, CAMERAS, CAMERA_FORWARD + 4), fz = get_f32(rdram, CAMERAS, CAMERA_FORWARD + 8);
     float len = std::sqrt(fx * fx + fy * fy + fz * fz);
     if (len > 0) { fx /= len; fy /= len; fz /= len; }
     yaw = std::atan2(fx, fz);
@@ -61,9 +69,13 @@ void start_free_camera(uint8_t *rdram) {
 
 void fly(uint8_t *rdram, const Uint8 *keys) {
     float speed = (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT]) ? 12.0f : 2.0f;
-    float turn = 0.03f;
-    if (keys[SDL_SCANCODE_LEFT]) yaw += turn;
-    if (keys[SDL_SCANCODE_RIGHT]) yaw -= turn;
+    float turn = 0.03f, mouse = 0.003f;
+    int dx = 0, dy = 0;
+    SDL_GetRelativeMouseState(&dx, &dy);
+    yaw += dx * mouse;
+    pitch -= dy * mouse;
+    if (keys[SDL_SCANCODE_LEFT]) yaw -= turn;
+    if (keys[SDL_SCANCODE_RIGHT]) yaw += turn;
     if (keys[SDL_SCANCODE_UP]) pitch += turn;
     if (keys[SDL_SCANCODE_DOWN]) pitch -= turn;
     pitch = std::fmax(-1.5f, std::fmin(1.5f, pitch));
@@ -73,14 +85,14 @@ void fly(uint8_t *rdram, const Uint8 *keys) {
     auto move = [&](const float *dir, float amount) { for (int i = 0; i < 3; i++) pos[i] += dir[i] * amount; };
     if (keys[SDL_SCANCODE_W]) move(f, speed);
     if (keys[SDL_SCANCODE_S]) move(f, -speed);
-    if (keys[SDL_SCANCODE_D]) move(r, -speed);
-    if (keys[SDL_SCANCODE_A]) move(r, speed);
-    if (keys[SDL_SCANCODE_R]) pos[1] += speed;
-    if (keys[SDL_SCANCODE_F]) pos[1] -= speed;
+    if (keys[SDL_SCANCODE_D]) move(r, speed);
+    if (keys[SDL_SCANCODE_A]) move(r, -speed);
+    if (keys[SDL_SCANCODE_E]) pos[1] += speed;
+    if (keys[SDL_SCANCODE_Q]) pos[1] -= speed;
 
     for (int i = 0; i < 3; i++) {
         set_f32(rdram, CAMERAS, CAMERA_POS + i * 4, pos[i]);
-        set_f32(rdram, CAMERAS, CAMERA_BACK + i * 4, -f[i]);
+        set_f32(rdram, CAMERAS, CAMERA_FORWARD + i * 4, f[i]);
     }
     set_f32(rdram, CAMERAS, CAMERA_UP, 0.0f);
     set_f32(rdram, CAMERAS, CAMERA_UP + 4, 1.0f);
@@ -100,6 +112,9 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
     if (pressed(keys, SDL_SCANCODE_F1)) {
         free_camera = !free_camera;
         if (free_camera) start_free_camera(rdram);
+        SDL_SetRelativeMouseMode(free_camera ? SDL_TRUE : SDL_FALSE);
+        int ignored;
+        SDL_GetRelativeMouseState(&ignored, &ignored);  // drop the motion from before
     }
     if (pressed(keys, SDL_SCANCODE_F2)) {
         arcade_textures_hidden = !arcade_textures_hidden;
@@ -108,6 +123,26 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
     if (free_camera) {
         fly(rdram, keys);
     }
+}
+
+// Called at the start of the front end's update (func_8006F240): moves through the startup screens
+// (copyright, intro) as soon as each one has loaded, in the game's own order, to the title screen. (Going
+// on to the main menu this way leaves it ignoring input: pressing Start on the title is needed.)
+extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
+    if (!enabled) {
+        return;
+    }
+    int32_t mode = MEM_W(0, GAME_MODE);
+    int32_t loaded = MEM_H(0, LOADED_SCREEN);
+    if (mode != loaded) {
+        return;
+    }
+    if (mode == MODE_COPYRIGHT) MEM_W(0, GAME_MODE) = MODE_INTRO;
+    else if (mode == MODE_INTRO) MEM_W(0, GAME_MODE) = MODE_TITLE;
+}
+
+bool cspeed::debug_tools_enabled() {
+    return enabled;
 }
 
 // Called after the graphics thread stores the frame time (func_8005434C): stops the clock while frozen,
