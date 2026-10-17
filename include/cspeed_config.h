@@ -17,6 +17,7 @@ namespace cspeed {
             inline const std::string level_of_detail = "level_of_detail";
             inline const std::string sample_rate = "sample_rate";
             inline const std::string skip_copyright = "skip_copyright";
+            inline const std::string smooth_radar = "smooth_radar";
         }
     }
 
@@ -28,6 +29,7 @@ namespace cspeed {
     bool max_level_of_detail();
     uint32_t audio_sample_rate();
     bool skip_copyright_screen();
+    bool smooth_radar();
 };
 
 #endif
