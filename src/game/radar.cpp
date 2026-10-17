@@ -9,7 +9,12 @@
 // (10.2 fixed point). RT64 samples unscaled 2D sprites on the original 320x240 grid (its "Upscale 2D"
 // option), which would keep the dot's texels on that grid however its rectangle moves, so the dots
 // are drawn with gEXForceUpscale2D, which our RT64 also draws at their exact, sub-pixel position.
+//
+// The game hides a dot as soon as its whole-pixel position leaves the radar's inside, so cars vanish
+// at once at the edges. Dots are kept while any part of them is inside, and their rectangles are cut
+// to the radar's inside, so they slide out under its frame.
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <vector>
@@ -33,14 +38,23 @@ constexpr uint32_t RT64_POP_OTHER_MODE = (0x64u << 24) | 0x00001A;     // gEXPop
 constexpr uint32_t G_SETOTHERMODE_H_TEXTFILT = 0xE3001201;            // gDPSetTextureFilter (F3DEX2)
 constexpr uint32_t G_TF_POINT = 0;
 
+// The radar's inside (in from its 1-pixel frame at 17..48 x 162..225), in pixels, where the dots
+// are, before the split-screen offset; and a dot's size.
+constexpr int RADAR_LEFT = 18, RADAR_TOP = 163, RADAR_RIGHT = 48, RADAR_BOTTOM = 225;
+constexpr int DOT_WIDTH = 2, DOT_HEIGHT = 4;
+
 struct Fraction {
     bool valid;
     int16_t x, y;           // the whole-pixel position the fraction belongs to
     int8_t qx, qy;          // the fraction in quarter pixels
+    int16_t clip_dy;        // the radar's offset from RADAR_TOP (split screen); clip_valid when known
+    bool clip_valid;
 };
 
 std::array<Fraction, HUD_ELEMENT_COUNT> fractions{};
 int8_t dot_qx = 0, dot_qy = 0;
+int16_t dot_range_y = 0;        // the dot's y when the game checked it against the radar's inside
+bool dot_range_checked = false;
 int32_t drawing_element = -1;
 uint32_t element_dl_start = 0;
 bool element_upscaled = false;
@@ -51,13 +65,6 @@ int8_t quarters(float value, int16_t whole) {
         return 0;
     }
     return (int8_t)((value - (float)whole) * 4.0f);
-}
-
-// Moves a rectangle command word's 10.2 coordinate pair (x in bits 12..23, y in bits 0..11).
-uint32_t moved(uint32_t w, int dx, int dy) {
-    uint32_t x = ((w >> 12) & 0xFFF) + dx;
-    uint32_t y = (w & 0xFFF) + dy;
-    return (w & 0xFF000000u) | ((x & 0xFFF) << 12) | (y & 0xFFF);
 }
 
 // The element's fraction, if it is a radar dot still at the position the fraction was computed for.
@@ -91,6 +98,7 @@ bool emit_force_upscale(uint8_t* rdram, bool force) {
 // Start of func_8009834C: dots that are not computed (the player's own, fixed dot) have no fraction.
 extern "C" void cspeed_radar_begin(uint8_t* rdram, recomp_context* ctx) {
     dot_qx = dot_qy = 0;
+    dot_range_checked = false;
 }
 
 // After the x truncation ($f2 = x, $v1 = whole x).
@@ -103,12 +111,30 @@ extern "C" void cspeed_radar_y(uint8_t* rdram, recomp_context* ctx) {
     dot_qy = quarters(ctx->f2.fl, (int16_t)ctx->r3);
 }
 
+// Where the game decides whether the dot is outside the radar ($a1 = 1 hides it, $s1 = object):
+// keeps it while any part of it is still inside.
+extern "C" void cspeed_radar_range(uint8_t* rdram, recomp_context* ctx) {
+    gpr obj = ctx->r17;
+    dot_range_y = (int16_t)MEM_H(0x10, obj);
+    dot_range_checked = true;
+    if (!cspeed::smooth_radar() || ctx->r5 == 0) {
+        return;
+    }
+    float x = (int16_t)MEM_H(0xE, obj) + dot_qx / 4.0f;
+    float y = dot_range_y + dot_qy / 4.0f;
+    if (x + DOT_WIDTH > RADAR_LEFT && x < RADAR_RIGHT && y + DOT_HEIGHT > RADAR_TOP && y < RADAR_BOTTOM) {
+        ctx->r5 = 0;
+    }
+}
+
 // Before the dot's HUD object is copied to its element ($s1 = object).
 extern "C" void cspeed_radar_store(uint8_t* rdram, recomp_context* ctx) {
     gpr obj = ctx->r17;
     uint32_t index = (uint16_t)MEM_H(0x34, obj);
     if (index < HUD_ELEMENT_COUNT) {
-        fractions[index] = { true, (int16_t)MEM_H(0xE, obj), (int16_t)MEM_H(0x10, obj), dot_qx, dot_qy };
+        int16_t y = (int16_t)MEM_H(0x10, obj);
+        fractions[index] = { true, (int16_t)MEM_H(0xE, obj), y, dot_qx, dot_qy,
+                             (int16_t)(y - dot_range_y), dot_range_checked };
     }
 }
 
@@ -120,10 +146,10 @@ extern "C" void cspeed_radar_draw_begin(uint8_t* rdram, recomp_context* ctx) {
 }
 
 // End of the HUD element drawer, for a radar dot: rewrites the commands it drew. Its rectangles
-// (sprites as texture rectangles, plain ones as fill rectangles) move by the dot's fraction, its
-// sprites are drawn with point filtering (bilinear filtering at the output resolution would blend in
-// the neighbouring texels around the dot, which the original's low-resolution sampling never shows),
-// and the forced upscaling ends.
+// (sprites as texture rectangles, plain ones as fill rectangles) move by the dot's fraction and are cut
+// to the radar's inside, its sprites are drawn with point filtering (bilinear filtering at the output
+// resolution would blend in the neighbouring texels around the dot, which the original's
+// low-resolution sampling never shows), and the forced upscaling ends.
 extern "C" void cspeed_radar_draw_end(uint8_t* rdram, recomp_context* ctx) {
     int32_t index = drawing_element;
     drawing_element = -1;
@@ -132,6 +158,14 @@ extern "C" void cspeed_radar_draw_end(uint8_t* rdram, recomp_context* ctx) {
     }
     element_upscaled = false;
     const Fraction& f = fractions[index];
+    // The radar's inside in 10.2 fixed point (no cut for dots the game placed without a range check).
+    int32_t clip[4] = { 0, 0, 0xFFF, 0xFFF };
+    if (f.clip_valid) {
+        clip[0] = RADAR_LEFT * 4;
+        clip[1] = (RADAR_TOP + f.clip_dy) * 4;
+        clip[2] = RADAR_RIGHT * 4;
+        clip[3] = (RADAR_BOTTOM + f.clip_dy) * 4;
+    }
     uint32_t start = element_dl_start;
     uint32_t end = (uint32_t)MEM_W(0, HUD_DL_HEAD);
     uint32_t limit = HUD_DL_BASE + (uint32_t)MEM_W(0, HUD_DL_INDEX) * HUD_DL_SIZE + HUD_DL_SIZE - HUD_DL_RESERVE;
@@ -141,28 +175,43 @@ extern "C" void cspeed_radar_draw_end(uint8_t* rdram, recomp_context* ctx) {
             uint32_t w0 = (uint32_t)MEM_W(0, (gpr)(int32_t)dl);
             uint32_t w1 = (uint32_t)MEM_W(4, (gpr)(int32_t)dl);
             uint32_t op = w0 >> 24;
-            if (op == 0xF6) {                                   // G_FILLRECT
-                out.insert(out.end(), { moved(w0, f.qx, f.qy), moved(w1, f.qx, f.qy) });
-                continue;
-            }
-            // A texture rectangle (G_TEXRECT, G_TEXRECTFLIP) followed by G_RDPHALF_1 (s, t in 10.5) and
-            // G_RDPHALF_2 (dsdx, dtdy in 5.10).
             bool texrect = (op == 0xE4 || op == 0xE5) && dl + 24 <= end &&
                 ((uint32_t)MEM_W(8, (gpr)(int32_t)dl) >> 24) == 0xE1 && ((uint32_t)MEM_W(16, (gpr)(int32_t)dl) >> 24) == 0xF1;
-            if (!texrect) {
+            if (op != 0xF6 && !texrect) {                       // not G_FILLRECT, G_TEXRECT or G_TEXRECTFLIP
                 out.insert(out.end(), { w0, w1 });
                 continue;
             }
-            uint32_t st = (uint32_t)MEM_W(12, (gpr)(int32_t)dl);
-            uint32_t d = (uint32_t)MEM_W(20, (gpr)(int32_t)dl);
-            int16_t dsdx = (int16_t)(d >> 16), dtdy = (int16_t)(d & 0xFFFF);
-            int16_t s = (int16_t)(st >> 16), t = (int16_t)(st & 0xFFFF);
-            if (f.qy != 0) {
-                // Starting on a fractional line, a texture rectangle samples from one row further along
-                // (as the RDP does, and RT64 with it), which would cut the sprite's first row: start a
-                // row earlier.
-                t -= dtdy >> 5;
+            // The moved rectangle, cut to the radar's inside.
+            int32_t ulx = (int32_t)((w1 >> 12) & 0xFFF) + f.qx, uly = (int32_t)(w1 & 0xFFF) + f.qy;
+            int32_t lrx = (int32_t)((w0 >> 12) & 0xFFF) + f.qx, lry = (int32_t)(w0 & 0xFFF) + f.qy;
+            int32_t cut_left = std::max(clip[0] - ulx, 0), cut_top = std::max(clip[1] - uly, 0);
+            ulx += cut_left;
+            uly += cut_top;
+            lrx = std::min(lrx, clip[2]);
+            lry = std::min(lry, clip[3]);
+            uint32_t rw0 = (w0 & 0xFF000000u) | ((uint32_t)lrx << 12) | (uint32_t)lry;
+            uint32_t rw1 = (w1 & 0xFF000000u) | ((uint32_t)ulx << 12) | (uint32_t)uly;
+            if (op == 0xF6) {
+                if (lrx > ulx && lry > uly) {
+                    out.insert(out.end(), { rw0, rw1 });
+                }
+                continue;
             }
+            // A texture rectangle is followed by G_RDPHALF_1 (s, t in 10.5) and G_RDPHALF_2 (dsdx, dtdy
+            // in 5.10).
+            uint32_t half1 = (uint32_t)MEM_W(8, (gpr)(int32_t)dl);
+            uint32_t half2 = (uint32_t)MEM_W(16, (gpr)(int32_t)dl);
+            uint32_t d = (uint32_t)MEM_W(20, (gpr)(int32_t)dl);
+            uint32_t st = (uint32_t)MEM_W(12, (gpr)(int32_t)dl);
+            dl += 16;
+            if (lrx <= ulx || lry <= uly) {
+                continue;
+            }
+            int32_t dsdx = (int16_t)(d >> 16), dtdy = (int16_t)(d & 0xFFFF);
+            bool flip = (op == 0xE5);
+            // The cut moves the texture's start along with the rectangle's (s follows y when flipped).
+            int32_t s = (int16_t)(st >> 16) + ((flip ? cut_top : cut_left) * dsdx) / 128;
+            int32_t t = (int16_t)(st & 0xFFFF) + ((flip ? cut_left : cut_top) * dtdy) / 128;
             // The RDP samples at whole pixel steps, the upscaled rectangle at the centres of the output
             // pixels: going backwards (the radar's sprites are drawn upside down), those land just
             // before each whole texel, one texel off. Start just under a texel further along.
@@ -176,12 +225,11 @@ extern "C" void cspeed_radar_draw_end(uint8_t* rdram, recomp_context* ctx) {
             out.insert(out.end(), {
                 RT64_PUSH_OTHER_MODE, 0,
                 G_SETOTHERMODE_H_TEXTFILT, G_TF_POINT,
-                moved(w0, f.qx, f.qy), moved(w1, f.qx, f.qy),
-                (uint32_t)MEM_W(8, (gpr)(int32_t)dl), st,
-                (uint32_t)MEM_W(16, (gpr)(int32_t)dl), d,
+                rw0, rw1,
+                half1, st,
+                half2, d,
                 RT64_POP_OTHER_MODE, 0,
             });
-            dl += 16;
         }
     }
     out.insert(out.end(), { RT64_FORCE_UPSCALE_2D, 0 });

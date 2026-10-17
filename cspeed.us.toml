@@ -339,3 +339,14 @@ before_vram = 0x800CFB78
 func = "func_800CFB78"
 text = "{ void cspeed_radar_draw_end(uint8_t*, recomp_context*); cspeed_radar_draw_end(rdram, ctx); }"
 before_vram = 0x800D0078
+
+# Smooth radar: keep dots that are partly inside the radar (src/game/radar.cpp).
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_range(uint8_t*, recomp_context*); cspeed_radar_range(rdram, ctx); }"
+before_vram = 0x8009870C
+
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_range(uint8_t*, recomp_context*); cspeed_radar_range(rdram, ctx); }"
+before_vram = 0x800989F4

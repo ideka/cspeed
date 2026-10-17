@@ -100,7 +100,8 @@ static void add_enhancement_options(recomp::config::Config &config) {
         keys::smooth_radar,
         "Smooth Radar",
         "Moves the cars on the radar smoothly at the display resolution, instead of jumping from one "
-        "low-resolution pixel to the next.",
+        "low-resolution pixel to the next, and lets them slide out under the radar's frame at its edges "
+        "instead of vanishing at once.",
         true
     );
     config.add_option_change_callback(keys::smooth_radar, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
