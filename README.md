@@ -1,5 +1,9 @@
 # California Speed: Recompiled
 
+> [!NOTE]
+> This project is vibe coded: nearly all of its code was written by an AI coding assistant (Claude),
+> directed and play-tested by a human. Expect rough edges.
+
 A native PC port of **California Speed** (Nintendo 64, 1999), built by statically recompiling the
 original game code with [N64Recomp](https://github.com/N64Recomp/N64Recomp). The game runs as native
 code on [N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime), renders through
