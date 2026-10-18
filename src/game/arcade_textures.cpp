@@ -193,6 +193,8 @@ private:
     }
 };
 
+constexpr size_t SPECK_TEXELS = 4;  // clusters this small, apart from the rest of a keyed texture, are specks
+
 // Decodes a .fxb texture (3dfx Glide texture formats).
 bool decode_fxb(const std::vector<uint8_t> &d, Image &out) {
     constexpr size_t TEXELS = 0x434;
@@ -246,23 +248,28 @@ bool decode_fxb(const std::vector<uint8_t> &d, Image &out) {
             uint8_t *o = &out.rgba[k];
             if (o[0] == kr && o[1] == kg && o[2] == kb) o[3] = 0;
         }
-        // Keying leaves a few lone texels of the old background in some textures (tree lines): at the
-        // arcade's resolution they hardly showed, scaled up they are specks floating next to the art.
-        std::vector<size_t> lone;
-        for (int j = 0; j < out.height; j++) {
-            for (int i = 0; i < out.width; i++) {
-                if (out.at(i, j)[3] == 0) continue;
-                bool neighbour = false;
+        // Keying leaves specks of the old background in some textures (tree lines): tiny clusters of texels
+        // apart from the art. At the arcade's resolution they hardly showed; scaled up they float next to it.
+        std::vector<int> seen(size_t(out.width) * out.height, 0), cluster, stack;
+        for (int start = 0; start < out.width * out.height; start++) {
+            if (seen[start] || out.rgba[size_t(start) * 4 + 3] == 0) continue;
+            cluster.clear(); stack.assign(1, start); seen[start] = 1;
+            while (!stack.empty()) {
+                int k = stack.back(); stack.pop_back(); cluster.push_back(k);
+                int i = k % out.width, j = k / out.width;
                 for (int dy = -1; dy <= 1; dy++) {
                     for (int dx = -1; dx <= 1; dx++) {
                         int x = i + dx, y = j + dy;
-                        if ((dx || dy) && x >= 0 && y >= 0 && x < out.width && y < out.height && out.at(x, y)[3] != 0) neighbour = true;
+                        if (x < 0 || y < 0 || x >= out.width || y >= out.height) continue;
+                        int n = y * out.width + x;
+                        if (!seen[n] && out.rgba[size_t(n) * 4 + 3] != 0) { seen[n] = 1; stack.push_back(n); }
                     }
                 }
-                if (!neighbour) lone.push_back(size_t(j) * out.width + i);
+            }
+            if (cluster.size() <= SPECK_TEXELS) {
+                for (int k : cluster) out.rgba[size_t(k) * 4 + 3] = 0;
             }
         }
-        for (size_t k : lone) out.rgba[k * 4 + 3] = 0;
     }
     return true;
 }
@@ -347,8 +354,8 @@ std::string read_text(const std::filesystem::path &path) {
 }
 
 // Identifies the mapping a pack was built from, so a changed mapping rebuilds the pack. PACK_FORMAT changes
-// when the way packs are built does (2: the arcade's own chroma keys, cutouts).
-constexpr const char *PACK_FORMAT = "2";
+// when the way packs are built does (2: the arcade's own chroma keys, cutouts; 3: specks).
+constexpr const char *PACK_FORMAT = "3";
 
 std::string mapping_id() {
     std::string text = read_text(mapping_path()) + PACK_FORMAT;
