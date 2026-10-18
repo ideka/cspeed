@@ -5,24 +5,19 @@ far. Newest findings go into the item they belong to.
 
 ## Graphics
 
-### Frame interpolation glitches (refresh rates above 60 only)
-- Races run at 60 FPS natively and menus at 30 (`src/game/framerate.cpp`), with RT64's frame
-  interpolation off at the original refresh rate. These glitches were seen with interpolation (30 FPS
-  game) and are gone at native 60; they may still show with a refresh rate above 60:
-  - **Speedometer needle** and **tire tracks / skid marks** shaking while turning.
-  - The **Midway word** flashing for about a frame at startup, in the intro after the copyright
-    screen (game modes 18 then 17): after the red logo assembles and before the word's horizontal
-    reveal, part of the word shows in pale yellow far to the right (outside the 4:3 area, so only in
-    widescreen). Captured by slowing the VI rate to 12 Hz (a local change to the runtime's VI
-    thread) with a 16:9 window. The game's display lists draw nothing there (no rectangles past
-    x=320, only the usual two framebuffers, normal scissors), so RT64 is presenting something else
-    for that frame. Declaring a 1000 Hz refresh rate for those frames (no in-between frames) made it
-    worse: the finished logo + word then blinked in during the assembly, i.e. RT64 sometimes
-    presents a framebuffer the game is not showing. Look at how the present queue picks the image
-    (`PresentQueue::threadPresent`, present-early / interpolation target selection).
-- Cause: RT64's interpolation pairs the wrong matrices or vertices between frames for these objects.
-  The usual fix is tagging their matrices (extended GBI `gEXMatrixGroup*`) or marking them as
-  non-interpolated; `src/game/graphics.cpp` already enables the extended GBI for every frame.
+### Midway word flash at startup (frame interpolation, refresh rates above 60)
+- The **Midway word** flashes for about a frame at startup, in the intro after the copyright screen
+  (game modes 18 then 17): after the red logo assembles and before the word's horizontal reveal, part
+  of the word shows in pale yellow far to the right (outside the 4:3 area, so only in widescreen).
+  Captured by slowing the VI rate to 12 Hz (a local change to the runtime's VI thread) with a 16:9
+  window. The game's display lists draw nothing there (no rectangles past x=320, only the usual two
+  framebuffers, normal scissors), so RT64 is presenting something else for that frame. Declaring a
+  1000 Hz refresh rate for those frames (no in-between frames) made it worse: the finished logo + word
+  then blinked in during the assembly, i.e. RT64 sometimes presents a framebuffer the game is not
+  showing. Look at how the present queue picks the image (`PresentQueue::threadPresent`, present-early
+  / interpolation target selection).
+- The other interpolation glitches (speedometer needle, skid marks) are gone: races run at 60 FPS
+  natively and menus at 30 (`src/game/framerate.cpp`).
 
 ### Clouds missing on the eyecatch screen
 - Reported: the clouds do not show on the eyecatch (attract) screen; in races they are fine. Not
@@ -31,25 +26,12 @@ far. Newest findings go into the item they belong to.
   problem the races had before that fix: extend the fix to the eyecatch, or check the 60 FPS / LoD
   changes by comparing against a build from before them.
 
-### 60 FPS: things to check
-- Races only (game state `0x8016D928` 3..10): the race logic is timed by retraces, and the race
-  clock matches real time at 60 FPS. Menu animations advance per frame, so menus stay at 30.
-- Not yet checked: AI and physics feel over a whole race, split-screen, attract-mode demo races (they
-  are not in game mode 1, so they run at 30), and effects that may be tied to frames.
-- Possibly make the frame rate an option (original 30 / 60).
-
-### Widescreen: remaining gaps
-- The race view (countdown, race, race over, results) and the credits after winning a cup widen; during the race the 2D HUD, the
-  speedometer needle and full-width overlays are anchored or stretched (`src/game/graphics.cpp`).
-  The race view is recognised by the game state at `0x8016D928` (3..10, in game mode 1); the race
-  HUD by the needle being drawn.
-- Watch for interpolation side effects of the needle's extra viewport commands (one report of other
-  racers blinking at high framerates, not reproduced since).
-- Menus stay 4:3 on purpose (4:3 background art; 3D objects slide in from outside the 4:3 area).
-- Objects may pop in/out at the widened screen edges if the game culls against a 4:3 frustum; not
-  seen yet.
-- Only Monterey has been checked closely; other tracks (sky dome fix, border removal) and
-  split-screen (2 players) have not been checked in widescreen.
+### Widescreen: eyecatch screen
+- The eyecatch (attract) screen still has black/grey bars at the sides in widescreen. The race view
+  and the credits widen (`src/game/graphics.cpp`: the camera's scissor opened to the full screen and the
+  frame's border strips removed, for the views `in_wide_view` recognises); the eyecatch is neither, so
+  it needs recognising too (see also the missing clouds there, above). Menus stay 4:3 on purpose (4:3
+  background art; 3D objects slide in from outside the 4:3 area).
 
 ### Extended draw distance (enhancement)
 - The game draws relative to the camera in 1/16 world units in 16-bit fixed point, so models more than
@@ -68,18 +50,17 @@ far. Newest findings go into the item they belong to.
 - The mapping (`assets/arcade_textures.json`, 782 textures) is built offline from the arcade data with
   the scripts in the (uncommitted) `California-Speed_Arcade_EN/tools`: dump N64 textures
   (`RT64_DUMP_TEXTURES`, `dump_textures.ps1`), decode (`n64tex.py`), match (`match.py`, `match2.py`),
-  review (`review_page.py`), build (`build_mapping.py`, which also refines crops and picks key colours,
-  mattes and opacities), and check transparency against the N64 textures (`alpha_check.py`).
+  review (`review_page.py`), build (`build_mapping.py`, which also refines crops), and check
+  transparency against the N64 textures (`alpha_check.py`). The transparency is the arcade's own (each
+  .fxb file's chroma key and alpha), not part of the mapping.
   `combined.py prepare` / `build` runs it all over every dump so far (the all-races dump and the 16
   per-track ones, 4054 textures), keeping every earlier review verdict, so only new textures are
-  reviewed (one page with both passes' candidates). Transparency: 759 of 782 match the N64 textures
-  (the rest are close: the N64 transparency is coarser).
-- Car paint: 79 palettized images (1857 hashes) differ only by palette (the car colour), and the RT64
+  reviewed (one page with both passes' candidates).
+- Car paint: 88 palettized images (1984 hashes) differ only by palette (the car colour), and the RT64
   hash includes the palette, so they are not replaced. Options: one recoloured replacement per dumped
   colour (colours never dumped stay N64), or palette-independent matching with tinting in RT64.
 - HUD and menu art is split into thin strips (4 KB of TMEM): stack the strips of the same source image
   (by RDRAM address) before matching, then replace each strip with its slice.
-- Not every track was played when dumping (some are locked): textures only seen there are missing.
 - Wrong matches show up in game: add their hashes to `rejected.json`.
 - Cutout edges (not fully fixed): trees still show a thin transparent gap along their bottom edge
   (floating above the ground), and roofs had a line along their top. Both come from filtering across the
@@ -102,9 +83,3 @@ far. Newest findings go into the item they belong to.
   extreme sizes can request absurdly large render targets and crash. RT64 does not cap them; a sanity
   limit on the internal resolution would avoid it. The window now has a 320x240 minimum size, which
   covers the flat-window crash during races.
-
-## UI
-
-### Controls menu lag (could not reproduce)
-- The recomp controls menu (not the in-game one) lagged badly when moving between options, once, while
-  an attract-mode demo was playing in the background. Did not happen again.
