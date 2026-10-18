@@ -5,14 +5,15 @@
 // sector/count pairs). Directories are files of (3-byte file id, type, name length, name) entries,
 // with the root at file id 2. Textures (.fxb) are Glide's Gu3dfInfo as saved from memory: a 24-byte
 // header (width, height, small/large LOD, aspect, format), a 1024-byte NCC table or palette, data
-// pointer and size, a 20-byte record, then the texels (largest mip first).
+// pointer and size, a 20-byte record, then the texels (largest mip first). The record's first word is the
+// texture's chroma key, as the game sets it for the 3dfx chip (SetTexSource): 0xFFFFFFFF for none,
+// otherwise the colour (0xRRGGBB) left out, or for the palette formats its palette index. The arcade
+// textures keep exactly the transparency the arcade gives them: their alpha, and their key colour.
 //
 // The mapping (assets/arcade_textures.json) gives, for each N64 texture hash, the arcade texture and
 // the crop of it that matches, the flip (many N64 textures are stored upside down), and the N64
-// texture's size (RT64's, and the part of it holding loaded texels), and for textures the arcade made
-// transparent with a key colour, that colour (or, for opaque N64 textures, a colour to fill the arcade
-// texture's transparency with, or an opacity for semi-transparent ones). Each replacement is the crop scaled to the loaded part of
-// the N64 texture, at an integer multiple of its size.
+// texture's size (RT64's, and the part of it holding loaded texels). Each replacement is the crop scaled
+// to the loaded part of the N64 texture, at an integer multiple of its size.
 
 #include "cspeed_arcade.h"
 #include "cspeed_config.h"
@@ -237,6 +238,32 @@ bool decode_fxb(const std::vector<uint8_t> &d, Image &out) {
         default: return false;
         }
     }
+    uint32_t key = le32(&d[0x420]);
+    if (key != 0xFFFFFFFF) {
+        if (fmt == 5 || fmt == 14) key = palette(key & 0xFF);
+        uint8_t kr = uint8_t(key >> 16), kg = uint8_t(key >> 8), kb = uint8_t(key);
+        for (size_t k = 0; k < out.rgba.size(); k += 4) {
+            uint8_t *o = &out.rgba[k];
+            if (o[0] == kr && o[1] == kg && o[2] == kb) o[3] = 0;
+        }
+        // Keying leaves a few lone texels of the old background in some textures (tree lines): at the
+        // arcade's resolution they hardly showed, scaled up they are specks floating next to the art.
+        std::vector<size_t> lone;
+        for (int j = 0; j < out.height; j++) {
+            for (int i = 0; i < out.width; i++) {
+                if (out.at(i, j)[3] == 0) continue;
+                bool neighbour = false;
+                for (int dy = -1; dy <= 1; dy++) {
+                    for (int dx = -1; dx <= 1; dx++) {
+                        int x = i + dx, y = j + dy;
+                        if ((dx || dy) && x >= 0 && y >= 0 && x < out.width && y < out.height && out.at(x, y)[3] != 0) neighbour = true;
+                    }
+                }
+                if (!neighbour) lone.push_back(size_t(j) * out.width + i);
+            }
+        }
+        for (size_t k : lone) out.rgba[k * 4 + 3] = 0;
+    }
     return true;
 }
 
@@ -251,28 +278,6 @@ Image crop(const Image &src, int x, int y, int w, int h, bool flip_x, bool flip_
         }
     }
     return out;
-}
-
-// The arcade made some textures transparent by keying out a background colour on the 3dfx chip.
-void apply_key(Image &image, const json &key) {
-    int kr = key[0], kg = key[1], kb = key[2];
-    constexpr int TOLERANCE = 3; // the key is an exact colour; allow for rounding in decoding
-    for (int j = 0; j < image.height; j++) {
-        for (int i = 0; i < image.width; i++) {
-            uint8_t *p = image.at(i, j);
-            if (std::max({ std::abs(p[0] - kr), std::abs(p[1] - kg), std::abs(p[2] - kb) }) <= TOLERANCE) p[3] = 0;
-        }
-    }
-}
-
-// For N64 textures that are opaque where the arcade one has transparency: fill it with a colour.
-void apply_matte(Image &image, const json &colour) {
-    int mc[3] = { colour[0], colour[1], colour[2] };
-    for (size_t k = 0; k < image.rgba.size(); k += 4) {
-        uint8_t *p = &image.rgba[k];
-        for (int c = 0; c < 3; c++) p[c] = uint8_t((p[c] * p[3] + mc[c] * (255 - p[3])) / 255);
-        p[3] = 255;
-    }
 }
 
 // Resamples one axis: box filter when shrinking, linear interpolation when enlarging.
@@ -412,13 +417,6 @@ std::string cspeed::arcade::generate_pack(const std::filesystem::path &chd_path,
         // Keep the arcade texture's detail: scale the N64 size up by a whole factor that covers the crop.
         int scale = std::clamp(int(std::ceil(std::max(double(w) / loaded_w, double(h) / loaded_h))), 1, MAX_SCALE);
         Image cropped = crop(source, x, y, w, h, flip.find('h') != std::string::npos, flip.find('v') != std::string::npos);
-        if (t.contains("key")) apply_key(cropped, t["key"]);
-        if (t.contains("matte")) apply_matte(cropped, t["matte"]);
-        if (t.contains("opacity")) {
-            // Semi-transparent N64 textures (water, glass) whose arcade version is opaque.
-            uint8_t level = uint8_t(int(t["opacity"]));
-            for (size_t k = 3; k < cropped.rgba.size(); k += 4) cropped.rgba[k] = std::min(cropped.rgba[k], level);
-        }
         Image content = resize(cropped, loaded_w * scale, loaded_h * scale);
         Image result = place(content, tile_w * scale, tile_h * scale);
 

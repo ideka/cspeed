@@ -1,7 +1,7 @@
 // Debug tools (enabled with CSPEED_DEBUG=1), driven from the keyboard while the game window is focused:
 //   F1  free camera: freezes the race and flies the camera around (camera 0). The mouse turns it (it is
-//         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down, arrow keys
-//         also turn, hold Shift to go faster.
+//         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down (relative to
+//         the view, so they tilt with it), arrow keys also turn, hold Shift to go faster.
 //   F3  culling off/on: draws what the game hides from the camera: scene nodes with the camera's hidden
 //         bit (0x400 << camera, func_800CDE40) or beyond the draw distance (its distance check), and
 //         chunks without its visible bit (func_800CE61C).
@@ -97,13 +97,15 @@ void fly(uint8_t *rdram, const Uint8 *keys) {
 
     float f[3] = { std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch) };
     float r[3] = { std::cos(yaw), 0, -std::sin(yaw) };
+    // Up relative to the view: tilts with the pitch (straight up when looking level).
+    float u[3] = { -std::sin(pitch) * std::sin(yaw), std::cos(pitch), -std::sin(pitch) * std::cos(yaw) };
     auto move = [&](const float *dir, float amount) { for (int i = 0; i < 3; i++) pos[i] += dir[i] * amount; };
     if (keys[SDL_SCANCODE_W]) move(f, speed);
     if (keys[SDL_SCANCODE_S]) move(f, -speed);
     if (keys[SDL_SCANCODE_D]) move(r, speed);
     if (keys[SDL_SCANCODE_A]) move(r, -speed);
-    if (keys[SDL_SCANCODE_E]) pos[1] += speed;
-    if (keys[SDL_SCANCODE_Q]) pos[1] -= speed;
+    if (keys[SDL_SCANCODE_E]) move(u, speed);
+    if (keys[SDL_SCANCODE_Q]) move(u, -speed);
 
     for (int i = 0; i < 3; i++) {
         set_f32(rdram, CAMERAS, CAMERA_POS + i * 4, pos[i]);
