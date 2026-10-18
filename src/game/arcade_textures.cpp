@@ -346,9 +346,12 @@ std::string read_text(const std::filesystem::path &path) {
     return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
 }
 
-// Identifies the mapping a pack was built from, so a changed mapping rebuilds the pack.
+// Identifies the mapping a pack was built from, so a changed mapping rebuilds the pack. PACK_FORMAT changes
+// when the way packs are built does (2: the arcade's own chroma keys, cutouts).
+constexpr const char *PACK_FORMAT = "2";
+
 std::string mapping_id() {
-    std::string text = read_text(mapping_path());
+    std::string text = read_text(mapping_path()) + PACK_FORMAT;
     uint64_t h = 1469598103934665603ULL;
     for (unsigned char c : text) { h ^= c; h *= 1099511628211ULL; }
     char buf[32];
@@ -417,6 +420,13 @@ std::string cspeed::arcade::generate_pack(const std::filesystem::path &chd_path,
         // Keep the arcade texture's detail: scale the N64 size up by a whole factor that covers the crop.
         int scale = std::clamp(int(std::ceil(std::max(double(w) / loaded_w, double(h) / loaded_h))), 1, MAX_SCALE);
         Image cropped = crop(source, x, y, w, h, flip.find('h') != std::string::npos, flip.find('v') != std::string::npos);
+        // Transparency that is a cutout (keyed or 1-bit alpha) must show even where the N64 texture was
+        // opaque and the game draws it without alpha (RT64 discards those texels, see ReplacementTexture::cutout).
+        bool holes = false, partial = false;
+        for (size_t k = 3; k < cropped.rgba.size(); k += 4) {
+            holes = holes || cropped.rgba[k] == 0;
+            partial = partial || (cropped.rgba[k] != 0 && cropped.rgba[k] != 255);
+        }
         Image content = resize(cropped, loaded_w * scale, loaded_h * scale);
         Image result = place(content, tile_w * scale, tile_h * scale);
 
@@ -425,7 +435,9 @@ std::string cspeed::arcade::generate_pack(const std::filesystem::path &chd_path,
         if (!stbi_write_png(out.string().c_str(), result.width, result.height, 4, result.rgba.data(), result.width * 4)) {
             return "Could not write " + out.string();
         }
-        database["textures"].push_back({ { "path", hash }, { "hashes", { { "rt64", hash } } } });
+        json entry = { { "path", hash }, { "hashes", { { "rt64", hash } } } };
+        if (holes && !partial) entry["cutout"] = true;
+        database["textures"].push_back(entry);
         written++;
         if (progress) progress(float(n + 1) / textures.size());
     }
