@@ -86,6 +86,22 @@ bool in_race_view(uint8_t* rdram) {
     return MEM_W(0, GAME_MODE) == GAME_MODE_RACE && state >= GAME_STATE_RACE_FIRST && state <= GAME_STATE_RACE_LAST;
 }
 
+// The credits after winning a cup are a 3D scene of their own (your car, the car you unlocked, the cup),
+// shown in the cup's screen (game mode 13) while its outcome (0x800E4558, set when the cup's last week
+// is scored) is 3, a win; it goes back to 0 once the credits end.
+constexpr gpr CUP_OUTCOME = (gpr)(int32_t)0x800E4558;
+constexpr int32_t GAME_MODE_CUP = 13;
+constexpr int32_t CUP_WON = 3;
+
+bool in_credits(uint8_t* rdram) {
+    return MEM_W(0, GAME_MODE) == GAME_MODE_CUP && MEM_W(0, CUP_OUTCOME) == CUP_WON;
+}
+
+// The 3D views that widen: the race view and the credits.
+bool in_wide_view(uint8_t* rdram) {
+    return in_race_view(rdram) || in_credits(rdram);
+}
+
 bool in_race(uint8_t* rdram) {
     return in_race_view(rdram) && needle_drawn_last_frame;
 }
@@ -98,7 +114,7 @@ bool in_race(uint8_t* rdram) {
 // screen: races fill the whole screen, and with the Expand aspect ratio this is also what lets RT64
 // widen the scene. Split-screen viewports are left untouched.
 extern "C" void cspeed_widescreen_camera_scissor(uint8_t* rdram, recomp_context* ctx) {
-    if (!in_race_view(rdram)) {
+    if (!in_wide_view(rdram)) {
         return;
     }
     gpr dl = ctx->r8;
@@ -482,6 +498,10 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     }
     if (cspeed::debug_no_fog()) {
         remove_fog(rdram, dl);
+    }
+    if (in_credits(rdram)) {
+        remove_borders(rdram, dl);
+        return;
     }
     if (!in_race_view(rdram)) {
         return;

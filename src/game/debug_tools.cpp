@@ -9,6 +9,9 @@
 //   F6  far view: the camera's far plane (and the game's draw distance) from 2000 to 20000.
 //   F7  world scale 1/4 (src/game/draw_distance.cpp): models further than 2048 units are drawn too.
 //   F8, F9  (in the menus) the game's built-in debug menus (game modes 10 and 11).
+//   F10 on the California Cup's screen: the cup at its last race (week 6, race 3), with the week's first
+//         two races won. F10 in a race: win it (straight to the results, first, and first in the cup's
+//         standings when the week is scored). Together they lead to the credits.
 // CSPEED_TRACK=<n> goes from startup straight into a race on track n (0-15, locked ones too), skipping
 // the title and the menus; it also replaces the track of races started from the menus.
 // It also skips the startup screens (copyright, intro) to the title screen, and turns
@@ -39,7 +42,13 @@ constexpr int32_t CAMERA_SIZE = 0x30;
 constexpr int32_t CAMERA_UP = 0x00, CAMERA_FORWARD = 0x0C, CAMERA_POS = 0x18;
 constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;
 constexpr int32_t MODE_MAIN_MENU = 0, MODE_RACE = 1, MODE_COPYRIGHT = 15, MODE_TITLE = 17, MODE_INTRO = 18;
-constexpr int32_t MODE_DEBUG_MENU_1 = 10, MODE_DEBUG_MENU_2 = 11;
+constexpr int32_t MODE_DEBUG_MENU_1 = 10, MODE_DEBUG_MENU_2 = 11, MODE_CUP = 13;
+constexpr int32_t STATE_RACING = 3, STATE_RESULTS = 6, STATE_COUNTDOWN = 10;
+// The player's profile and its California Cup progress: race in the week, week, and finishing places
+// (1-based) of the week's races.
+constexpr gpr PROFILE = (gpr)(int32_t)0x800954EC;
+constexpr int32_t PROFILE_CUP_RACE = 0x523, PROFILE_CUP_WEEK = 0x524, PROFILE_CUP_RESULTS = 0x52F;
+constexpr int8_t CUP_LAST_WEEK = 5, CUP_LAST_RACE = 2;
 constexpr gpr GAME_STATE = (gpr)(int32_t)0x8016D928;
 constexpr int32_t STATE_LOAD_RACE = 7;
 constexpr gpr PLAYER1_INPUT = (gpr)(int32_t)0x800954D0;  // player 1's input block
@@ -119,6 +128,7 @@ void fly(uint8_t *rdram, const Uint8 *keys) {
     set_f32(rdram, CAMERAS, CAMERA_UP + 8, 0.0f);
 }
 
+bool force_win = false;
 bool no_terrain_culling = false;
 bool no_fog = false;
 bool far_view = false;
@@ -171,6 +181,15 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
     if (free_camera) {
         fly(rdram, keys);
     }
+    if (pressed(keys, SDL_SCANCODE_F10) && MEM_W(0, GAME_STATE) == STATE_RACING) {
+        // Win the race: straight to the results, with player 1 first (cspeed_debug_won_race).
+        force_win = true;
+        MEM_W(0, GAME_STATE) = STATE_RESULTS;
+        printf("Race won (F10)\n");
+    }
+    if (MEM_W(0, GAME_STATE) == STATE_COUNTDOWN) {
+        force_win = false;  // a new race: earn it
+    }
 }
 
 // Called at the start of the front end's update (func_8006F240): moves through the startup screens
@@ -186,7 +205,6 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
         }
         return;
     }
-    // The game's own debug menus, left in as game modes 10 and 11 (nothing in the menus leads to them).
     const Uint8 *keys = SDL_GetKeyboardState(nullptr);
     if (pressed(keys, SDL_SCANCODE_F8)) {
         MEM_W(0, GAME_MODE) = MODE_DEBUG_MENU_1;
@@ -195,6 +213,17 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
     if (pressed(keys, SDL_SCANCODE_F9)) {
         MEM_W(0, GAME_MODE) = MODE_DEBUG_MENU_2;
         printf("Debug menu (game mode %d)\n", MODE_DEBUG_MENU_2);
+    }
+    if (pressed(keys, SDL_SCANCODE_F10) && MEM_W(0, GAME_MODE) == MODE_CUP) {
+        // The California Cup at its last race (week 6, race 3), the week's first two won.
+        gpr profile = (gpr)MEM_W(0, PROFILE);
+        if (profile != 0) {
+            MEM_B(PROFILE_CUP_WEEK, profile) = CUP_LAST_WEEK;
+            MEM_B(PROFILE_CUP_RACE, profile) = CUP_LAST_RACE;
+            MEM_B(PROFILE_CUP_RESULTS, profile) = 1;
+            MEM_B(PROFILE_CUP_RESULTS + 1, profile) = 1;
+            printf("California Cup: last race (F10)\n");
+        }
     }
     static const bool quick_race = getenv("CSPEED_TRACK") != nullptr;
     static bool raced = false;
@@ -223,6 +252,13 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
         MEM_H(0, START_PRESSED) |= 0x1000;
         MEM_H(0, START_HELD) |= 0x1000;
     }
+}
+
+// For the hooks where a race's result is recorded (func_80060BAC: finishing place, 0 for first) and where
+// a week of a series is scored (func_80088ABC: place in the series' standings, 1 for first): after an F10
+// win, first in both (cspeed.us.toml).
+extern "C" int cspeed_debug_force_win() {
+    return enabled && force_win;
 }
 
 bool cspeed::debug_no_fog() {

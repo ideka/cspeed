@@ -362,3 +362,21 @@ before_vram = 0x80055B4C
 func = "func_80055C28"
 text = "{ int cspeed_music_resume(uint8_t*, recomp_context*); if (cspeed_music_resume(rdram, ctx)) goto L_80055D88; }"
 before_vram = 0x80055D18
+
+# Debug tools: F10 wins the race (see src/game/debug_tools.cpp): first in its result ($v0, 0 for first),
+# and first in the series' standings when the week is scored (+0x4C of $a0 for the last week, of $v1
+# for the others).
+[[patches.hook]]
+func = "func_80060BAC"
+text = "{ int cspeed_debug_force_win(void); if (cspeed_debug_force_win()) ctx->r2 = 0; }"
+before_vram = 0x80061318
+
+[[patches.hook]]
+func = "func_80088ABC"
+text = "{ int cspeed_debug_force_win(void); if (cspeed_debug_force_win()) MEM_H(0x4C, ctx->r4) = 1; }"
+before_vram = 0x800892E8
+
+[[patches.hook]]
+func = "func_80088ABC"
+text = "{ int cspeed_debug_force_win(void); if (cspeed_debug_force_win()) MEM_H(0x4C, ctx->r3) = 1; }"
+before_vram = 0x80089344

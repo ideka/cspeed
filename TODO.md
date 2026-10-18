@@ -31,11 +31,6 @@ far. Newest findings go into the item they belong to.
   problem the races had before that fix: extend the fix to the eyecatch, or check the 60 FPS / LoD
   changes by comparing against a build from before them.
 
-### Black bars in the credits scene
-- The credits scene shows black bars (presumably the game's overscan border or a 4:3 frame in
-  widescreen); remove them like the race view does (`remove_borders` in `src/game/graphics.cpp`).
-  Not investigated yet.
-
 ### 60 FPS: things to check
 - Races only (game state `0x8016D928` 3..10): the race logic is timed by retraces, and the race
   clock matches real time at 60 FPS. Menu animations advance per frame, so menus stay at 30.
@@ -44,7 +39,7 @@ far. Newest findings go into the item they belong to.
 - Possibly make the frame rate an option (original 30 / 60).
 
 ### Widescreen: remaining gaps
-- The race view (countdown, race, race over, results) widens; during the race the 2D HUD, the
+- The race view (countdown, race, race over, results) and the credits after winning a cup widen; during the race the 2D HUD, the
   speedometer needle and full-width overlays are anchored or stretched (`src/game/graphics.cpp`).
   The race view is recognised by the game state at `0x8016D928` (3..10, in game mode 1); the race
   HUD by the needle being drawn.
