@@ -86,6 +86,12 @@ far. Newest findings go into the item they belong to.
   (by RDRAM address) before matching, then replace each strip with its slice.
 - Not every track was played when dumping (some are locked): textures only seen there are missing.
 - Wrong matches show up in game: add their hashes to `rejected.json`.
+- Cutout edges (not fully fixed): trees still show a thin transparent gap along their bottom edge
+  (floating above the ground), and roofs had a line along their top. Both come from filtering across the
+  edge of a wrapping texture, which blends in its opposite side. Cutouts are packed without RT64's half
+  texel shift and discarded under half opacity (`RasterPS.hlsl`, `ReplacementTexture::cutout`), which
+  narrowed it but did not remove it. Next idea: decide the cutout from the nearest texel (point-sampled
+  alpha) while the colour stays filtered, so the opposite edge never counts.
 
 ## Gameplay
 
