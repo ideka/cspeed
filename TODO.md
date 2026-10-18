@@ -70,11 +70,15 @@ far. Newest findings go into the item they belong to.
   distance culls off, and the fog moved further out (scaled with the far plane) instead of removed.
 
 ### Arcade textures: remaining work
-- The mapping (`assets/arcade_textures.json`, 604 textures) is built offline from the arcade data with
+- The mapping (`assets/arcade_textures.json`, 782 textures) is built offline from the arcade data with
   the scripts in the (uncommitted) `California-Speed_Arcade_EN/tools`: dump N64 textures
-  (`RT64_DUMP_TEXTURES`), decode (`n64tex.py`), match (`match.py`, `match2.py`), review
-  (`review_page.py`), build (`build_mapping.py`, which also refines crops and picks key colours,
+  (`RT64_DUMP_TEXTURES`, `dump_textures.ps1`), decode (`n64tex.py`), match (`match.py`, `match2.py`),
+  review (`review_page.py`), build (`build_mapping.py`, which also refines crops and picks key colours,
   mattes and opacities), and check transparency against the N64 textures (`alpha_check.py`).
+  `combined.py prepare` / `build` runs it all over every dump so far (the all-races dump and the 16
+  per-track ones, 4054 textures), keeping every earlier review verdict, so only new textures are
+  reviewed (one page with both passes' candidates). Transparency: 759 of 782 match the N64 textures
+  (the rest are close: the N64 transparency is coarser).
 - Car paint: 79 palettized images (1857 hashes) differ only by palette (the car colour), and the RT64
   hash includes the palette, so they are not replaced. Options: one recoloured replacement per dumped
   colour (colours never dumped stay N64), or palette-independent matching with tinting in RT64.
