@@ -13,3 +13,6 @@
 	path = lib/rt64
 	url = https://github.com/ideka/rt64
 	branch = cspeed
+[submodule "lib/libchdr"]
+	path = lib/libchdr
+	url = https://github.com/rtissera/libchdr

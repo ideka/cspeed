@@ -19,6 +19,8 @@ namespace cspeed {
             inline const std::string skip_copyright = "skip_copyright";
             inline const std::string smooth_radar = "smooth_radar";
             inline const std::string resume_music = "resume_music";
+            inline const std::string arcade_textures = "arcade_textures";
+            inline const std::string arcade_data_path = "arcade_data_path";
         }
     }
 
@@ -32,6 +34,10 @@ namespace cspeed {
     bool skip_copyright_screen();
     bool smooth_radar();
     bool resume_music_after_pause();
+    bool arcade_textures_enabled();
+    // The arcade hard drive image last used for the arcade textures (empty if none).
+    std::filesystem::path arcade_data_path();
+    void set_arcade_data_path(const std::filesystem::path &path);
 };
 
 #endif

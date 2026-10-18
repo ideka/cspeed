@@ -1,4 +1,5 @@
 #include "cspeed_config.h"
+#include "cspeed_arcade.h"
 #include "recompui/recompui.h"
 #include "recompui/config.h"
 #include "recompinput/recompinput.h"
@@ -27,6 +28,7 @@ namespace {
     std::atomic<bool> skip_copyright_enabled = false;
     std::atomic<bool> smooth_radar_enabled = true;
     std::atomic<bool> resume_music_enabled = true;
+    std::atomic<bool> arcade_textures_on = true;
     std::atomic<uint32_t> sample_rate_value = 48000;
 }
 
@@ -35,9 +37,21 @@ bool cspeed::max_level_of_detail() { return max_lod_enabled; }
 bool cspeed::skip_copyright_screen() { return skip_copyright_enabled; }
 bool cspeed::smooth_radar() { return smooth_radar_enabled; }
 bool cspeed::resume_music_after_pause() { return resume_music_enabled; }
+bool cspeed::arcade_textures_enabled() { return arcade_textures_on; }
 uint32_t cspeed::audio_sample_rate() { return sample_rate_value; }
 
 namespace keys = cspeed::configkeys::enhancements;
+
+std::filesystem::path cspeed::arcade_data_path() {
+    return std::filesystem::u8path(std::get<std::string>(recompui::config::get_config(keys::id).get_option_value(keys::arcade_data_path)));
+}
+
+void cspeed::set_arcade_data_path(const std::filesystem::path &path) {
+    auto &config = recompui::config::get_config(keys::id);
+    std::u8string utf8 = path.u8string();
+    config.set_option_value(keys::arcade_data_path, std::string(utf8.begin(), utf8.end()));
+    config.save_config();
+}
 
 
 static void add_general_options(recomp::config::Config &config) {
@@ -86,6 +100,19 @@ static void add_enhancement_options(recomp::config::Config &config) {
     );
     config.add_option_change_callback(keys::level_of_detail, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
         max_lod_enabled = std::get<bool>(cur);
+    });
+
+    config.add_bool_option(
+        keys::arcade_textures,
+        "Arcade Textures",
+        "Replaces the textures with the higher resolution ones of the arcade version, where they match. "
+        "Needs the arcade version's hard drive image, chosen with <b>Arcade Data</b> in the launcher. "
+        "In game, F2 hides and shows them for comparison.",
+        true
+    );
+    config.add_option_change_callback(keys::arcade_textures, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        arcade_textures_on = std::get<bool>(cur);
+        cspeed::arcade::apply_pack_setting();
     });
 
     config.add_bool_option(
@@ -139,6 +166,8 @@ static void add_enhancement_options(recomp::config::Config &config) {
         uint32_t index = std::get<uint32_t>(cur);
         sample_rate_value = index < rates.size() ? rates[index] : rates.back();
     });
+
+    config.add_string_option(keys::arcade_data_path, "Arcade Data", "", "", true);
 
 }
 

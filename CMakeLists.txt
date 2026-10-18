@@ -62,6 +62,13 @@ set(BUILD_SHARED_LIBS OFF)
 
 add_subdirectory(${CMAKE_SOURCE_DIR}/lib/N64ModernRuntime)
 
+# libchdr reads the arcade version's hard drive image (CHD) for the optional arcade textures. It reuses
+# RT64's zstd (through cmake/zstd) and the runtime's miniz instead of building second copies.
+set(WITH_SYSTEM_ZSTD ON CACHE BOOL "" FORCE)
+set(zstd_DIR ${CMAKE_SOURCE_DIR}/cmake/zstd CACHE PATH "" FORCE)
+set(CHDR_WANT_TESTS OFF CACHE BOOL "" FORCE)
+add_subdirectory(${CMAKE_SOURCE_DIR}/lib/libchdr EXCLUDE_FROM_ALL)
+
 target_include_directories(rt64 PRIVATE ${CMAKE_BINARY_DIR}/rt64/src)
 
 # RecompiledFuncs - Library containing the primary recompiler output
@@ -167,6 +174,7 @@ set (SOURCES
     ${CMAKE_SOURCE_DIR}/src/game/audio.cpp
     ${CMAKE_SOURCE_DIR}/src/game/lod.cpp
     ${CMAKE_SOURCE_DIR}/src/game/analog.cpp
+    ${CMAKE_SOURCE_DIR}/src/game/arcade_textures.cpp
     ${CMAKE_SOURCE_DIR}/src/game/debug_tools.cpp
     ${CMAKE_SOURCE_DIR}/src/game/draw_distance.cpp
 
@@ -370,6 +378,7 @@ target_link_libraries(CaliforniaSpeedRecompiled PRIVATE
     ultramodern
     rt64
     nfd
+    chdr-static
 )
 
 # Embed all .nrm files in the "mods" directory

@@ -485,6 +485,7 @@ void remove_fog(uint8_t* rdram, uint32_t dl) {
 }
 
 extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* ctx) {
+    cspeed::poll_hotkeys();
     RT64::VI::setOverscanCrop(OVERSCAN_CROP);
     needle_drawn_last_frame = false;
     // The task points at our prologue; the game's display list is the target of its branch.

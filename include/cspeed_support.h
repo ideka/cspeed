@@ -17,6 +17,8 @@ namespace cspeed {
     void set_host_stick(int controller, float x, float y);
     // CSPEED_DEBUG=1 (src/game/debug_tools.cpp).
     bool debug_tools_enabled();
+    // Hotkeys available without the debug tools (src/game/debug_tools.cpp), once per frame.
+    void poll_hotkeys();
     bool debug_no_fog();
 
 // Apple specific methods that usually require Objective-C. Implemented in support_apple.mm.

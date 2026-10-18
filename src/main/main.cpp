@@ -39,6 +39,7 @@
 #include "recompinput/profiles.h"
 #include "cspeed_config.h"
 #include "cspeed_support.h"
+#include "cspeed_arcade.h"
 #include "cspeed_game.h"
 #include "cspeed_launcher.h"
 #include "recomp_data.h"
@@ -621,6 +622,8 @@ void on_launcher_init(recompui::LauncherMenu *menu) {
     game_options_menu->add_setup_controls_option();
     game_options_menu->add_settings_option();
     game_options_menu->add_mods_option();
+    // Optional: the arcade version's hard drive image, for its higher resolution textures.
+    game_options_menu->add_option("Arcade Data", cspeed::arcade::select_arcade_data);
     game_options_menu->add_exit_option();
 
     recompui::Element *menu_container = menu->get_menu_container();
@@ -854,6 +857,7 @@ int main(int argc, char** argv) {
     set_default_controller_mappings();
 
     cspeed::init_config();
+    cspeed::arcade::startup();
 
     recompui::register_launcher_init_callback(on_launcher_init);
     recompui::register_launcher_update_callback(on_launcher_update);

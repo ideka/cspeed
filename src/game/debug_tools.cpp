@@ -31,6 +31,7 @@
 #include "recomp.h"
 #include "cspeed_config.h"
 #include "cspeed_support.h"
+#include "cspeed_arcade.h"
 #include "recompinput/input_state.h"
 
 extern "C" void cspeed_set_world_scale(float scale);
@@ -129,6 +130,7 @@ void fly(uint8_t *rdram, const Uint8 *keys) {
 }
 
 bool force_win = false;
+bool arcade_textures_hidden = false;
 bool no_terrain_culling = false;
 bool no_fog = false;
 bool far_view = false;
@@ -259,6 +261,18 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
 // win, first in both (cspeed.us.toml).
 extern "C" int cspeed_debug_force_win() {
     return enabled && force_win;
+}
+
+// Hotkeys that work without the debug tools too, checked once per frame (from the graphics task
+// submission, src/game/graphics.cpp) while the game window has the keyboard:
+//   F2  arcade textures on/off, without changing the option (for comparisons).
+void cspeed::poll_hotkeys() {
+    const Uint8 *keys = SDL_GetKeyboardState(nullptr);
+    if (pressed(keys, SDL_SCANCODE_F2)) {
+        arcade_textures_hidden = !arcade_textures_hidden;
+        cspeed::arcade::set_hidden(arcade_textures_hidden);
+        printf("Arcade textures %s (F2)\n", arcade_textures_hidden ? "hidden" : "shown");
+    }
 }
 
 bool cspeed::debug_no_fog() {
