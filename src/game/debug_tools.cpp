@@ -1,7 +1,8 @@
 // Debug tools (enabled with CSPEED_DEBUG=1), driven from the keyboard while the game window is focused:
 //   F1  free camera: freezes the race and flies the camera around (camera 0). The mouse turns it (it is
 //         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down (relative to
-//         the view, so they tilt with it), arrow keys also turn, hold Shift to go faster.
+//         the view, so they tilt with it), arrow keys also turn, hold Shift to go faster,
+//         Ctrl faster still.
 //   F3  culling off/on: draws what the game hides from the camera: scene nodes with the camera's hidden
 //         bit (0x400 << camera, func_800CDE40) or beyond the draw distance (its distance check), and
 //         chunks without its visible bit (func_800CE61C).
@@ -83,7 +84,9 @@ void start_free_camera(uint8_t *rdram) {
 }
 
 void fly(uint8_t *rdram, const Uint8 *keys) {
-    float speed = (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT]) ? 12.0f : 2.0f;
+    bool fast = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
+    bool faster = keys[SDL_SCANCODE_LCTRL] || keys[SDL_SCANCODE_RCTRL];
+    float speed = faster ? 60.0f : fast ? 12.0f : 2.0f;
     float turn = 0.03f, mouse = 0.003f;
     float dx = 0, dy = 0;
     recompinput::get_raw_mouse_deltas(&dx, &dy);

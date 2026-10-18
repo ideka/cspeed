@@ -354,7 +354,8 @@ std::string read_text(const std::filesystem::path &path) {
 }
 
 // Identifies the mapping a pack was built from, so a changed mapping rebuilds the pack. PACK_FORMAT changes
-// when the way packs are built does (2: the arcade's own chroma keys, cutouts; 3: specks; 4: cutouts unshifted).
+// when the way packs are built does (2: the arcade's own chroma keys, cutouts; 3: specks; 4: cutouts without
+// the half texel shift).
 constexpr const char *PACK_FORMAT = "4";
 
 std::string mapping_id() {
@@ -446,7 +447,8 @@ std::string cspeed::arcade::generate_pack(const std::filesystem::path &chd_path,
         if (holes && !partial) {
             entry["cutout"] = true;
             // Without the half texel shift: with it, the last half texel along an edge samples the opposite
-            // edge of a wrapping texture, which showed as a line where that edge is opaque (roofs).
+            // edge of a wrapping texture, which showed as a line where that edge is opaque (roofs) and as a
+            // gap where it is transparent (trees floating above the ground).
             entry["shift"] = "none";
         }
         database["textures"].push_back(entry);
