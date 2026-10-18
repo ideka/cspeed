@@ -1,13 +1,14 @@
 // Debug tools (enabled with CSPEED_DEBUG=1), driven from the keyboard while the game window is focused:
 //   F1  free camera: freezes the race and flies the camera around (camera 0). The mouse turns it (it is
-//         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down, arrow keys
-//         also turn, hold Shift to go faster.
+//         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down (relative to
+//         the view, so they tilt with it), arrow keys also turn, hold Shift to go faster, Ctrl faster still.
 //   F3  culling off/on: draws what the game hides from the camera: scene nodes with the camera's hidden
 //         bit (0x400 << camera, func_800CDE40) or beyond the draw distance (its distance check), and
 //         chunks without its visible bit (func_800CE61C).
 //   F5  fog off/on (src/game/graphics.cpp).
 //   F6  far view: the camera's far plane (and the game's draw distance) from 2000 to 20000.
 //   F7  world scale 1/4 (src/game/draw_distance.cpp): models further than 2048 units are drawn too.
+//   F8, F9  (in the menus) the game's built-in debug menus (game modes 10 and 11).
 // CSPEED_TRACK=<n> goes from startup straight into a race on track n (0-15, locked ones too), skipping
 // the title and the menus; it also replaces the track of races started from the menus.
 // It also skips the startup screens (copyright, intro) to the title screen, and turns
@@ -38,6 +39,7 @@ constexpr int32_t CAMERA_SIZE = 0x30;
 constexpr int32_t CAMERA_UP = 0x00, CAMERA_FORWARD = 0x0C, CAMERA_POS = 0x18;
 constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;
 constexpr int32_t MODE_MAIN_MENU = 0, MODE_RACE = 1, MODE_COPYRIGHT = 15, MODE_TITLE = 17, MODE_INTRO = 18;
+constexpr int32_t MODE_DEBUG_MENU_1 = 10, MODE_DEBUG_MENU_2 = 11;
 constexpr gpr GAME_STATE = (gpr)(int32_t)0x8016D928;
 constexpr int32_t STATE_LOAD_RACE = 7;
 constexpr gpr PLAYER1_INPUT = (gpr)(int32_t)0x800954D0;  // player 1's input block
@@ -82,7 +84,9 @@ void start_free_camera(uint8_t *rdram) {
 }
 
 void fly(uint8_t *rdram, const Uint8 *keys) {
-    float speed = (keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT]) ? 12.0f : 2.0f;
+    bool fast = keys[SDL_SCANCODE_LSHIFT] || keys[SDL_SCANCODE_RSHIFT];
+    bool faster = keys[SDL_SCANCODE_LCTRL] || keys[SDL_SCANCODE_RCTRL];
+    float speed = faster ? 60.0f : fast ? 12.0f : 2.0f;
     float turn = 0.03f, mouse = 0.003f;
     float dx = 0, dy = 0;
     recompinput::get_raw_mouse_deltas(&dx, &dy);
@@ -96,13 +100,15 @@ void fly(uint8_t *rdram, const Uint8 *keys) {
 
     float f[3] = { std::sin(yaw) * std::cos(pitch), std::sin(pitch), std::cos(yaw) * std::cos(pitch) };
     float r[3] = { std::cos(yaw), 0, -std::sin(yaw) };
+    // Up relative to the view: tilts with the pitch (straight up when looking level).
+    float u[3] = { -std::sin(pitch) * std::sin(yaw), std::cos(pitch), -std::sin(pitch) * std::cos(yaw) };
     auto move = [&](const float *dir, float amount) { for (int i = 0; i < 3; i++) pos[i] += dir[i] * amount; };
     if (keys[SDL_SCANCODE_W]) move(f, speed);
     if (keys[SDL_SCANCODE_S]) move(f, -speed);
     if (keys[SDL_SCANCODE_D]) move(r, speed);
     if (keys[SDL_SCANCODE_A]) move(r, -speed);
-    if (keys[SDL_SCANCODE_E]) pos[1] += speed;
-    if (keys[SDL_SCANCODE_Q]) pos[1] -= speed;
+    if (keys[SDL_SCANCODE_E]) move(u, speed);
+    if (keys[SDL_SCANCODE_Q]) move(u, -speed);
 
     for (int i = 0; i < 3; i++) {
         set_f32(rdram, CAMERAS, CAMERA_POS + i * 4, pos[i]);
@@ -179,6 +185,16 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
             MEM_W(0, GAME_MODE) = MODE_INTRO;
         }
         return;
+    }
+    // The game's own debug menus, left in as game modes 10 and 11 (nothing in the menus leads to them).
+    const Uint8 *keys = SDL_GetKeyboardState(nullptr);
+    if (pressed(keys, SDL_SCANCODE_F8)) {
+        MEM_W(0, GAME_MODE) = MODE_DEBUG_MENU_1;
+        printf("Debug menu (game mode %d)\n", MODE_DEBUG_MENU_1);
+    }
+    if (pressed(keys, SDL_SCANCODE_F9)) {
+        MEM_W(0, GAME_MODE) = MODE_DEBUG_MENU_2;
+        printf("Debug menu (game mode %d)\n", MODE_DEBUG_MENU_2);
     }
     static const bool quick_race = getenv("CSPEED_TRACK") != nullptr;
     static bool raced = false;
