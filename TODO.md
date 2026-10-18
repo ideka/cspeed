@@ -1,7 +1,7 @@
 # TODO
 
 Known problems and wanted features that are not being worked on right now, with what is known so
-far. Newest findings go into the item they belong to.
+far.
 
 ## Graphics
 
@@ -70,6 +70,12 @@ far. Newest findings go into the item they belong to.
   alpha) while the colour stays filtered, so the opposite edge never counts.
 
 ## Gameplay
+
+### Test split screen (2 players)
+- Split screen has not been tested at all. Check it with everything the recomp changed: 60 FPS in
+  races, widescreen (the camera scissor fix leaves split viewports alone, the HUD anchoring and border
+  removal assume one view), the radar (Smooth Radar offsets the dots for the second player's radar),
+  Resume Music After Pause, the arcade textures, and the full analog controls for both controllers.
 
 ### Load the first Controller Pak profile on startup
 - Right now the player has to pick LOAD on the 1 Player screen every session. Automatically load the
