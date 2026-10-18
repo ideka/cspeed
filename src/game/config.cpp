@@ -104,7 +104,8 @@ static void add_enhancement_options(recomp::config::Config &config) {
         keys::arcade_textures,
         "Arcade Textures",
         "Replaces the textures with the higher resolution ones of the arcade version, where they match. "
-        "Needs the arcade version's hard drive image, chosen with <b>Arcade Data</b> in the launcher.",
+        "Needs the arcade version's hard drive image, chosen with <b>Arcade Data</b> in the launcher. "
+        "In game, F2 hides and shows them for comparison.",
         true
     );
     config.add_option_change_callback(keys::arcade_textures, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {

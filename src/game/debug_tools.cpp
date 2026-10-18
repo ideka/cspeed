@@ -2,7 +2,6 @@
 //   F1  free camera: freezes the race and flies the camera around (camera 0). The mouse turns it (it is
 //         captured while the free camera is on), W/S forward/back, A/D sideways, E/Q up/down, arrow keys
 //         also turn, hold Shift to go faster.
-//   F2  arcade textures on/off, without changing the option.
 //   F3  culling off/on: draws what the game hides from the camera: scene nodes with the camera's hidden
 //         bit (0x400 << camera, func_800CDE40) or beyond the draw distance (its distance check), and
 //         chunks without its visible bit (func_800CE61C).
@@ -139,10 +138,6 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
         // Capture the mouse (the input layer's event loop owns the cursor; it applies this).
         recompinput::set_cursor_lock_override(free_camera);
     }
-    if (pressed(keys, SDL_SCANCODE_F2)) {
-        arcade_textures_hidden = !arcade_textures_hidden;
-        cspeed::arcade::set_hidden(arcade_textures_hidden);
-    }
     if (pressed(keys, SDL_SCANCODE_F3)) {
         no_terrain_culling = !no_terrain_culling;
         printf("Terrain culling %s\n", no_terrain_culling ? "off" : "on");
@@ -213,6 +208,18 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
         // controller.
         MEM_H(0, START_PRESSED) |= 0x1000;
         MEM_H(0, START_HELD) |= 0x1000;
+    }
+}
+
+// Hotkeys that work without the debug tools too, checked once per frame (from the graphics task
+// submission, src/game/graphics.cpp) while the game window has the keyboard:
+//   F2  arcade textures on/off, without changing the option (for comparisons).
+void cspeed::poll_hotkeys() {
+    const Uint8 *keys = SDL_GetKeyboardState(nullptr);
+    if (pressed(keys, SDL_SCANCODE_F2)) {
+        arcade_textures_hidden = !arcade_textures_hidden;
+        cspeed::arcade::set_hidden(arcade_textures_hidden);
+        printf("Arcade textures %s (F2)\n", arcade_textures_hidden ? "hidden" : "shown");
     }
 }
 
