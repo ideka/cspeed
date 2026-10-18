@@ -2,7 +2,7 @@
 //
 // The game draws everything relative to the camera in N64 units of 1/16 world unit, in 16-bit fixed
 // point (+-32768 units): model matrices (func_800CA90C, func_800CABEC) hold rotation x 65536 and the
-// object's offset from the camera x 16 x 65536, and leave out anything more than 2048 world units from
+// object's offset from the camera (or, for child nodes, from their parent) x 16 x 65536, and leave out anything more than 2048 world units from
 // the camera on an axis; terrain pieces (func_800CE61C) are written as camera-relative vertices the same
 // way. Drawing at a smaller scale (all of those, and the projection's near and far planes) looks the
 // same and reaches further: at 1/4, 8192 world units. Hooked in cspeed.us.toml.
@@ -14,6 +14,7 @@
 namespace {
 
 float world_scale = 1.0f;
+float matrix_scale = 1.0f;  // for the model matrix being built
 
 float as_float(gpr reg) {
     uint32_t bits = (uint32_t)reg;
@@ -32,6 +33,16 @@ gpr as_gpr(float f) {
 
 extern "C" float cspeed_world_scale() {
     return world_scale;
+}
+
+// At the start of a model matrix build: matrices relative to a parent node (wheels, some billboards)
+// are not scaled, since they are multiplied onto the parent's, which already is.
+extern "C" void cspeed_matrix_begin(int relative_to_parent) {
+    matrix_scale = relative_to_parent ? 1.0f : world_scale;
+}
+
+extern "C" float cspeed_matrix_scale() {
+    return matrix_scale;
 }
 
 extern "C" void cspeed_set_world_scale(float scale) {

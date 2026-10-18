@@ -26,8 +26,9 @@
 #include <SDL.h>
 
 #include "recomp.h"
-#include "cspeed_arcade.h"
+#include "cspeed_config.h"
 #include "cspeed_support.h"
+#include "cspeed_arcade.h"
 #include "recompinput/input_state.h"
 
 extern "C" void cspeed_set_world_scale(float scale);
@@ -41,6 +42,10 @@ constexpr gpr GAME_MODE = (gpr)(int32_t)0x80141E00;
 constexpr int32_t MODE_MAIN_MENU = 0, MODE_RACE = 1, MODE_COPYRIGHT = 15, MODE_TITLE = 17, MODE_INTRO = 18;
 constexpr gpr GAME_STATE = (gpr)(int32_t)0x8016D928;
 constexpr int32_t STATE_LOAD_RACE = 7;
+constexpr gpr PLAYER1_INPUT = (gpr)(int32_t)0x800954D0;  // player 1's input block
+constexpr int32_t PLAYER1_CONTROLS = 0xC;                // 6 button masks (gas, brake, steering, ...)
+constexpr gpr START_PRESSED = (gpr)(int32_t)0x800F5F32;  // controller 1 buttons pressed this frame
+constexpr gpr START_HELD = (gpr)(int32_t)0x80134834;     // controller 1 buttons
 constexpr gpr LOADED_SCREEN = (gpr)(int32_t)0x800E2BB8;  // s16: the mode whose screen is loaded
 
 const bool enabled = [] { const char *v = getenv("CSPEED_DEBUG"); return v != nullptr && v[0] == '1'; }();
@@ -172,10 +177,14 @@ extern "C" void cspeed_debug_camera(uint8_t *rdram, recomp_context *ctx) {
 // Called at the start of the front end's update (func_8006F240): moves through the startup screens
 // (copyright, intro) as soon as each one has loaded, in the game's own order, to the title screen. With
 // CSPEED_TRACK, it goes on through the title and from the main menu straight to loading the race (game
-// mode 1, state 7) with the default car, skipping the menus. (Going on from the title by itself leaves the
-// main menu ignoring input, so without CSPEED_TRACK the title still needs Start.)
+// mode 1, state 7) with the default car and controls, skipping the menus. Without the debug tools, only
+// the copyright screen is skipped, if the Skip Copyright Screen option is on.
 extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
     if (!enabled) {
+        int32_t mode = MEM_W(0, GAME_MODE);
+        if (cspeed::skip_copyright_screen() && mode == MODE_COPYRIGHT && mode == MEM_H(0, LOADED_SCREEN)) {
+            MEM_W(0, GAME_MODE) = MODE_INTRO;
+        }
         return;
     }
     static const bool quick_race = getenv("CSPEED_TRACK") != nullptr;
@@ -183,6 +192,12 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
     int32_t mode = MEM_W(0, GAME_MODE);
     if (quick_race && !raced && mode == MODE_MAIN_MENU) {
         raced = true;
+        // The control layout car select would set for player 1: gas A, brake B, steering on the stick,
+        // then R, Z and C-Up.
+        static const uint16_t layout[] = { 0x8000, 0x4000, 0xFFFE, 0x0010, 0x2000, 0x0008 };
+        for (int i = 0; i < 6; i++) {
+            MEM_H(PLAYER1_CONTROLS + i * 2, PLAYER1_INPUT) = (int16_t)layout[i];
+        }
         MEM_W(0, GAME_MODE) = MODE_RACE;
         MEM_W(0, GAME_STATE) = STATE_LOAD_RACE;
         return;
@@ -192,7 +207,13 @@ extern "C" void cspeed_debug_skip_intro(uint8_t *rdram, recomp_context *ctx) {
     }
     if (mode == MODE_COPYRIGHT) MEM_W(0, GAME_MODE) = MODE_INTRO;
     else if (mode == MODE_INTRO) MEM_W(0, GAME_MODE) = MODE_TITLE;
-    else if (mode == MODE_TITLE && quick_race && !raced) MEM_W(0, GAME_MODE) = MODE_MAIN_MENU;
+    else if (mode == MODE_TITLE && quick_race && !raced) {
+        // Press Start for the game, so it does its own title-screen handling (func_8006ED60: controller
+        // 0 to player 1 and the player's data); jumping to the main menu would leave player 1 without a
+        // controller.
+        MEM_H(0, START_PRESSED) |= 0x1000;
+        MEM_H(0, START_HELD) |= 0x1000;
+    }
 }
 
 bool cspeed::debug_no_fog() {

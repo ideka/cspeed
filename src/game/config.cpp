@@ -25,14 +25,18 @@
 namespace {
     std::atomic<bool> analog_controls_enabled = true;
     std::atomic<bool> max_lod_enabled = true;
-    std::atomic<uint32_t> sample_rate_value = 48000;
+    std::atomic<bool> skip_copyright_enabled = false;
+    std::atomic<bool> smooth_radar_enabled = true;
     std::atomic<bool> arcade_textures_on = true;
+    std::atomic<uint32_t> sample_rate_value = 48000;
 }
 
 bool cspeed::full_analog_controls() { return analog_controls_enabled; }
 bool cspeed::max_level_of_detail() { return max_lod_enabled; }
-uint32_t cspeed::audio_sample_rate() { return sample_rate_value; }
+bool cspeed::skip_copyright_screen() { return skip_copyright_enabled; }
+bool cspeed::smooth_radar() { return smooth_radar_enabled; }
 bool cspeed::arcade_textures_enabled() { return arcade_textures_on; }
+uint32_t cspeed::audio_sample_rate() { return sample_rate_value; }
 
 namespace keys = cspeed::configkeys::enhancements;
 
@@ -46,6 +50,7 @@ void cspeed::set_arcade_data_path(const std::filesystem::path &path) {
     config.set_option_value(keys::arcade_data_path, std::string(utf8.begin(), utf8.end()));
     config.save_config();
 }
+
 
 static void add_general_options(recomp::config::Config &config) {
 }
@@ -107,6 +112,28 @@ static void add_enhancement_options(recomp::config::Config &config) {
         cspeed::arcade::apply_pack_setting();
     });
 
+    config.add_bool_option(
+        keys::skip_copyright,
+        "Skip Copyright Screen",
+        "Goes straight to the intro at startup, without the copyright screen.",
+        false
+    );
+    config.add_option_change_callback(keys::skip_copyright, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        skip_copyright_enabled = std::get<bool>(cur);
+    });
+
+    config.add_bool_option(
+        keys::smooth_radar,
+        "Smooth Radar",
+        "Moves the cars on the radar smoothly at the display resolution, instead of jumping from one "
+        "low-resolution pixel to the next, and lets them slide out under the radar's frame at its edges "
+        "instead of vanishing at once.",
+        true
+    );
+    config.add_option_change_callback(keys::smooth_radar, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        smooth_radar_enabled = std::get<bool>(cur);
+    });
+
     static const std::vector<uint32_t> rates = { 22050, 32000, 44100, 48000 };
     config.add_enum_option(
         keys::sample_rate,
@@ -127,6 +154,7 @@ static void add_enhancement_options(recomp::config::Config &config) {
     });
 
     config.add_string_option(keys::arcade_data_path, "Arcade Data", "", "", true);
+
 }
 
 static void set_control_defaults() {

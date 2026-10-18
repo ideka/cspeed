@@ -205,45 +205,57 @@ func = "func_800CDE40"
 text = "{ int cspeed_debug_no_terrain_culling(); if (cspeed_debug_no_terrain_culling()) ctx->f2.fl = INFINITY; }"
 before_vram = 0x800CE3A0
 
-# World scale (draw distance experiment, see src/game/draw_distance.cpp).
+# World scale (draw distance experiment, see src/game/draw_distance.cpp). The model matrix builders
+# record at their start whether they build a camera-relative matrix (scaled) or one relative to a parent
+# node (not scaled: the parent's already is).
 [[patches.hook]]
 func = "func_800CA90C"
-text = "{ float cspeed_world_scale(void); ctx->f2.fl = -2048.0f / cspeed_world_scale(); }"
+text = "{ void cspeed_matrix_begin(int); cspeed_matrix_begin(ctx->r7 != 0); }"
+before_vram = 0x800CA90C
+
+[[patches.hook]]
+func = "func_800CABEC"
+text = "{ void cspeed_matrix_begin(int); cspeed_matrix_begin(MEM_W(0x10, ctx->r29) != 0); }"
+before_vram = 0x800CABEC
+
+[[patches.hook]]
+func = "func_800CA90C"
+text = "{ float cspeed_matrix_scale(void); ctx->f2.fl = -2048.0f / cspeed_matrix_scale(); }"
 before_vram = 0x800CA978
 
 [[patches.hook]]
 func = "func_800CA90C"
-text = "{ float cspeed_world_scale(void); ctx->f0.fl = 2048.0f / cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f0.fl = 2048.0f / cspeed_matrix_scale(); }"
 before_vram = 0x800CA99C
 
 [[patches.hook]]
 func = "func_800CA90C"
-text = "{ float cspeed_world_scale(void); ctx->f0.fl = 1048576.0f * cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f0.fl = 1048576.0f * cspeed_matrix_scale(); }"
 before_vram = 0x800CAA44
 
 [[patches.hook]]
 func = "func_800CA90C"
-text = "{ float cspeed_world_scale(void); ctx->f4.fl = 65536.0f * cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f4.fl = 65536.0f * cspeed_matrix_scale(); }"
 before_vram = 0x800CAAB8
 
 [[patches.hook]]
 func = "func_800CABEC"
-text = "{ float cspeed_world_scale(void); ctx->f2.fl = -2048.0f / cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f2.fl = -2048.0f / cspeed_matrix_scale(); }"
 before_vram = 0x800CAC5C
 
 [[patches.hook]]
 func = "func_800CABEC"
-text = "{ float cspeed_world_scale(void); ctx->f0.fl = 2048.0f / cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f0.fl = 2048.0f / cspeed_matrix_scale(); }"
 before_vram = 0x800CAC80
 
 [[patches.hook]]
 func = "func_800CABEC"
-text = "{ float cspeed_world_scale(void); ctx->f0.fl = 1048576.0f * cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f0.fl = 1048576.0f * cspeed_matrix_scale(); }"
 before_vram = 0x800CAD28
 
 [[patches.hook]]
 func = "func_800CABEC"
-text = "{ float cspeed_world_scale(void); ctx->f4.fl = 65536.0f * cspeed_world_scale(); }"
+text = "{ float cspeed_matrix_scale(void); ctx->f4.fl = 65536.0f * cspeed_matrix_scale(); }"
 before_vram = 0x800CAD9C
 
 [[patches.hook]]
@@ -276,3 +288,65 @@ func = "func_800CE61C"
 text = "{ float cspeed_world_scale(void); if (ctx->r22 == 0) ctx->f2.fl *= cspeed_world_scale(); }"
 before_vram = 0x800CEA54
 
+
+# Screen position adjustment: while L and R are held, the game moves the picture with the stick
+# (func_800541EC, run every frame), and keeps the result (also saved in the Controller Pak profile).
+# Meant for centring the picture on a TV; with both stick clicks as L and R it is easy to trigger by
+# accident. Disabled: the picture always stays centred.
+[[patches.hook]]
+func = "func_800541EC"
+text = "MEM_H(0x5C, (gpr)(int32_t)0x80020000) = 0; MEM_H(0x5A, (gpr)(int32_t)0x80020000) = 0; return;"
+before_vram = 0x800541EC
+
+# Smooth radar: keep the fraction of the radar dots' positions and draw them in quarter pixels (see
+# src/game/radar.cpp).
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_begin(uint8_t*, recomp_context*); cspeed_radar_begin(rdram, ctx); }"
+before_vram = 0x8009834C
+
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_x(uint8_t*, recomp_context*); cspeed_radar_x(rdram, ctx); }"
+before_vram = 0x800985D0
+
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_y(uint8_t*, recomp_context*); cspeed_radar_y(rdram, ctx); }"
+before_vram = 0x80098654
+
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_x(uint8_t*, recomp_context*); cspeed_radar_x(rdram, ctx); }"
+before_vram = 0x800988B8
+
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_y(uint8_t*, recomp_context*); cspeed_radar_y(rdram, ctx); }"
+before_vram = 0x8009893C
+
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_store(uint8_t*, recomp_context*); cspeed_radar_store(rdram, ctx); }"
+before_vram = 0x80098A70
+
+[[patches.hook]]
+func = "func_800CFB78"
+text = "{ void cspeed_radar_draw_begin(uint8_t*, recomp_context*); cspeed_radar_draw_begin(rdram, ctx); }"
+before_vram = 0x800CFB78
+
+[[patches.hook]]
+func = "func_800CFB78"
+text = "{ void cspeed_radar_draw_end(uint8_t*, recomp_context*); cspeed_radar_draw_end(rdram, ctx); }"
+before_vram = 0x800D0078
+
+# Smooth radar: keep dots that are partly inside the radar (src/game/radar.cpp).
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_range(uint8_t*, recomp_context*); cspeed_radar_range(rdram, ctx); }"
+before_vram = 0x8009870C
+
+[[patches.hook]]
+func = "func_8009834C"
+text = "{ void cspeed_radar_range(uint8_t*, recomp_context*); cspeed_radar_range(rdram, ctx); }"
+before_vram = 0x800989F4
