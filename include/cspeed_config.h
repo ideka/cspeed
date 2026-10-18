@@ -10,6 +10,9 @@ namespace cspeed {
     inline const std::string program_name = "California Speed: Recompiled";
 
     namespace configkeys {
+        namespace graphics {
+            inline const std::string anisotropic_filtering = "anisotropic_filtering";
+        }
         namespace enhancements {
             inline const std::string id = "enhancements";
             inline const std::string tab_name = "Enhancements";

@@ -1,5 +1,6 @@
 #include "cspeed_config.h"
 #include "cspeed_arcade.h"
+#include "render/rt64_texture_filtering.h"
 #include "recompui/recompui.h"
 #include "recompui/config.h"
 #include "recompinput/recompinput.h"
@@ -73,6 +74,29 @@ T get_graphics_config_enum_value(const std::string& option_id) {
 }
 
 static void add_graphics_options(recomp::config::Config &config) {
+    using recomp::config::ConfigValueVariant;
+    using recomp::config::OptionChangeContext;
+
+    // Anisotropic filtering in RT64's emulated texture sampling (our RT64 fork, RasterPS).
+    static const std::vector<uint32_t> levels = { 1, 2, 4, 8, 16 };
+    config.add_enum_option(
+        cspeed::configkeys::graphics::anisotropic_filtering,
+        "Anisotropic Filtering",
+        "Keeps textures sharp on surfaces seen at a glancing angle, like the road ahead, instead of "
+        "blurring or shimmering. Higher levels look sharper further away and cost more GPU time.",
+        {
+            { 0, "Off", "Off" },
+            { 1, "2x", "2x" },
+            { 2, "4x", "4x" },
+            { 3, "8x", "8x" },
+            { 4, "16x", "16x" },
+        },
+        3u
+    );
+    config.add_option_change_callback(cspeed::configkeys::graphics::anisotropic_filtering, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        uint32_t index = std::get<uint32_t>(cur);
+        RT64::setMaxAnisotropy(index < levels.size() ? levels[index] : levels.back());
+    });
 }
 
 // The game's enhancements, each optional. Changes apply right away (no Apply button), except the sample
