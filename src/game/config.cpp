@@ -26,6 +26,7 @@ namespace {
     std::atomic<bool> max_lod_enabled = true;
     std::atomic<bool> skip_copyright_enabled = false;
     std::atomic<bool> smooth_radar_enabled = true;
+    std::atomic<bool> resume_music_enabled = true;
     std::atomic<uint32_t> sample_rate_value = 48000;
 }
 
@@ -33,6 +34,7 @@ bool cspeed::full_analog_controls() { return analog_controls_enabled; }
 bool cspeed::max_level_of_detail() { return max_lod_enabled; }
 bool cspeed::skip_copyright_screen() { return skip_copyright_enabled; }
 bool cspeed::smooth_radar() { return smooth_radar_enabled; }
+bool cspeed::resume_music_after_pause() { return resume_music_enabled; }
 uint32_t cspeed::audio_sample_rate() { return sample_rate_value; }
 
 namespace keys = cspeed::configkeys::enhancements;
@@ -106,6 +108,17 @@ static void add_enhancement_options(recomp::config::Config &config) {
     );
     config.add_option_change_callback(keys::smooth_radar, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
         smooth_radar_enabled = std::get<bool>(cur);
+    });
+
+    config.add_bool_option(
+        keys::resume_music,
+        "Resume Music After Pause",
+        "Continues the race's music where it stopped when the race is unpaused, instead of starting the "
+        "song over.",
+        true
+    );
+    config.add_option_change_callback(keys::resume_music, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        resume_music_enabled = std::get<bool>(cur);
     });
 
     static const std::vector<uint32_t> rates = { 22050, 32000, 44100, 48000 };

@@ -18,6 +18,7 @@ namespace cspeed {
             inline const std::string sample_rate = "sample_rate";
             inline const std::string skip_copyright = "skip_copyright";
             inline const std::string smooth_radar = "smooth_radar";
+            inline const std::string resume_music = "resume_music";
         }
     }
 
@@ -30,6 +31,7 @@ namespace cspeed {
     uint32_t audio_sample_rate();
     bool skip_copyright_screen();
     bool smooth_radar();
+    bool resume_music_after_pause();
 };
 
 #endif

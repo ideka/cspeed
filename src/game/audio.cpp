@@ -87,3 +87,37 @@ extern "C" void cspeed_after_audio_init(uint8_t* rdram, recomp_context* ctx) {
     int32_t size = MEM_W(8, AUDIO_HEAP);
     printf("Audio: %u Hz, audio heap %d of %d bytes used\n", cspeed::audio_sample_rate(), used, size);
 }
+
+// Music after a pause (enhancement): continue the song where it stopped instead of starting it over.
+//
+// Pausing a race stops the music (func_80055B4C, alSeqpStop) and continuing asks for the race's song
+// again (func_80055C28). That request plays a song that is loaded but has not been played yet, but
+// reloads the one that played last, which starts it over. When the music was stopped during the race
+// (game state 3, also while paused) and the same song is asked for while still racing, the request
+// plays it instead: the sequence player picks up from where the sequence stopped. Restarting the race
+// or finishing it goes through other states, so those still start the song over.
+namespace {
+
+constexpr gpr GAME_STATE = (gpr)(int32_t)0x8016D928;
+constexpr int32_t STATE_RACING = 3;
+constexpr gpr LOADED_SONG = (gpr)(int32_t)0x80141DDC;     // u8, 0xFF for none
+constexpr int32_t NO_SONG = 0xFF;
+
+int32_t stopped_song = NO_SONG;  // the song the music was stopped in while racing
+
+} // namespace
+
+// Start of func_80055B4C (stop the music).
+extern "C" void cspeed_music_stop(uint8_t* rdram, recomp_context* ctx) {
+    stopped_song = MEM_W(0, GAME_STATE) == STATE_RACING ? (int32_t)(uint8_t)MEM_BU(0, LOADED_SONG) : NO_SONG;
+}
+
+// In func_80055C28 (ask for a song, $s0 = song) where it would reload the song that played last: true to
+// play it from where it stopped instead.
+extern "C" int cspeed_music_resume(uint8_t* rdram, recomp_context* ctx) {
+    int32_t song = (int32_t)ctx->r16;
+    bool resume = cspeed::resume_music_after_pause() && song != NO_SONG && song == stopped_song &&
+                  song == (int32_t)(uint8_t)MEM_BU(0, LOADED_SONG) && MEM_W(0, GAME_STATE) == STATE_RACING;
+    stopped_song = NO_SONG;
+    return resume;
+}

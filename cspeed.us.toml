@@ -350,3 +350,15 @@ before_vram = 0x8009870C
 func = "func_8009834C"
 text = "{ void cspeed_radar_range(uint8_t*, recomp_context*); cspeed_radar_range(rdram, ctx); }"
 before_vram = 0x800989F4
+
+# Music after a pause: continue the song where it stopped (see src/game/audio.cpp). L_80055D88 plays the
+# loaded song without reloading it ($v1 = loaded song, $s0 = requested one).
+[[patches.hook]]
+func = "func_80055B4C"
+text = "{ void cspeed_music_stop(uint8_t*, recomp_context*); cspeed_music_stop(rdram, ctx); }"
+before_vram = 0x80055B4C
+
+[[patches.hook]]
+func = "func_80055C28"
+text = "{ int cspeed_music_resume(uint8_t*, recomp_context*); if (cspeed_music_resume(rdram, ctx)) goto L_80055D88; }"
+before_vram = 0x80055D18
