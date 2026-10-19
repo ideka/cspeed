@@ -351,17 +351,33 @@ func = "func_8009834C"
 text = "{ void cspeed_radar_range(uint8_t*, recomp_context*); cspeed_radar_range(rdram, ctx); }"
 before_vram = 0x800989F4
 
-# Music after a pause: continue the song where it stopped (see src/game/audio.cpp). L_80055D88 plays the
-# loaded song without reloading it ($v1 = loaded song, $s0 = requested one).
+# Music after a pause: the pause freezes the song instead of stopping it (see src/game/audio.cpp). The
+# hooks are at function entries, before anything is saved, so they can return right away ($v0 = result).
 [[patches.hook]]
 func = "func_80055B4C"
-text = "{ void cspeed_music_stop(uint8_t*, recomp_context*); cspeed_music_stop(rdram, ctx); }"
+text = "{ int cspeed_music_stop(uint8_t*, recomp_context*); if (cspeed_music_stop(rdram, ctx)) return; }"
 before_vram = 0x80055B4C
 
 [[patches.hook]]
 func = "func_80055C28"
-text = "{ int cspeed_music_resume(uint8_t*, recomp_context*); if (cspeed_music_resume(rdram, ctx)) goto L_80055D88; }"
-before_vram = 0x80055D18
+text = "{ int cspeed_music_request(uint8_t*, recomp_context*); if (cspeed_music_request(rdram, ctx)) return; }"
+before_vram = 0x80055C28
+
+[[patches.hook]]
+func = "func_80055C28"
+text = "{ void cspeed_music_song_change(void); cspeed_music_song_change(); }"
+before_vram = 0x80055CA8
+
+# The sequence player's handler and the envelope mixer's pull (alEnvmixerPull, $sp+0x10 = command pointer).
+[[patches.hook]]
+func = "func_80005FA4"
+text = "{ int cspeed_music_player_frozen(uint8_t*, recomp_context*); if (cspeed_music_player_frozen(rdram, ctx)) return; }"
+before_vram = 0x80005FA4
+
+[[patches.hook]]
+func = "func_80010360"
+text = "{ int cspeed_music_voice_frozen(uint8_t*, recomp_context*); if (cspeed_music_voice_frozen(rdram, ctx)) { ctx->r2 = MEM_W(0x10, ctx->r29); return; } }"
+before_vram = 0x80010360
 
 # Debug tools: F10 wins the race (see src/game/debug_tools.cpp): first in its result ($v0, 0 for first),
 # and first in the series' standings when the week is scored (+0x4C of $a0 for the last week, of $v1
