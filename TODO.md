@@ -62,12 +62,13 @@ far.
 - HUD and menu art is split into thin strips (4 KB of TMEM): stack the strips of the same source image
   (by RDRAM address) before matching, then replace each strip with its slice.
 - Wrong matches show up in game: add their hashes to `rejected.json`.
-- Cutout edges (not fully fixed): trees still show a thin transparent gap along their bottom edge
-  (floating above the ground), and roofs had a line along their top. Both come from filtering across the
-  edge of a wrapping texture, which blends in its opposite side. Cutouts are packed without RT64's half
-  texel shift and discarded under half opacity (`RasterPS.hlsl`, `ReplacementTexture::cutout`), which
-  narrowed it but did not remove it. Next idea: decide the cutout from the nearest texel (point-sampled
-  alpha) while the colour stays filtered, so the opposite edge never counts.
+- Cutout edges: check in game that trees now sit on the ground. The gap under them was the arcade
+  textures' own border: many keyed textures (79 edges of the 231 cutouts, mostly tree lines and
+  buildings) have a row of the key colour along the edge next to the art, which the arcade drew blended
+  (its hardware keys after filtering). The pack now fills those edge texels from the art next to them
+  (`fill_key_border`). Roofs had a line along their top from filtering across the edge of a wrapping
+  texture; cutouts are packed without RT64's half texel shift and discarded under half opacity
+  (`RasterPS.hlsl`, `ReplacementTexture::cutout`), which narrowed it to a very thin line.
 
 ## Gameplay
 

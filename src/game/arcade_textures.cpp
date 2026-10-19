@@ -287,6 +287,28 @@ Image crop(const Image &src, int x, int y, int w, int h, bool flip_x, bool flip_
     return out;
 }
 
+// Many keyed textures have a row or column of the key colour along an edge, next to the art (the ground
+// line of tree lines, the bottom of buildings). The arcade's hardware keys after filtering, so it drew
+// that border blended with the art; keyed out here, it showed as a gap where the art should reach the
+// edge (trees floating above the ground). Each transparent edge texel next to an opaque one takes its
+// colour.
+void fill_key_border(Image &image) {
+    if (image.width < 2 || image.height < 2) return;
+    auto fill = [&](int x, int y, int inner_x, int inner_y) {
+        uint8_t *edge = image.at(x, y);
+        const uint8_t *inner = image.at(inner_x, inner_y);
+        if (edge[3] == 0 && inner[3] == 255) memcpy(edge, inner, 4);
+    };
+    for (int x = 0; x < image.width; x++) {
+        fill(x, 0, x, 1);
+        fill(x, image.height - 1, x, image.height - 2);
+    }
+    for (int y = 0; y < image.height; y++) {
+        fill(0, y, 1, y);
+        fill(image.width - 1, y, image.width - 2, y);
+    }
+}
+
 // Resamples one axis: box filter when shrinking, linear interpolation when enlarging.
 Image resample_axis(const Image &src, int new_size, bool horizontal) {
     int old_size = horizontal ? src.width : src.height;
@@ -355,8 +377,8 @@ std::string read_text(const std::filesystem::path &path) {
 
 // Identifies the mapping a pack was built from, so a changed mapping rebuilds the pack. PACK_FORMAT changes
 // when the way packs are built does (2: the arcade's own chroma keys, cutouts; 3: specks; 4: cutouts without
-// the half texel shift).
-constexpr const char *PACK_FORMAT = "4";
+// the half texel shift; 5: key borders filled).
+constexpr const char *PACK_FORMAT = "5";
 
 std::string mapping_id() {
     std::string text = read_text(mapping_path()) + PACK_FORMAT;
@@ -435,6 +457,7 @@ std::string cspeed::arcade::generate_pack(const std::filesystem::path &chd_path,
             holes = holes || cropped.rgba[k] == 0;
             partial = partial || (cropped.rgba[k] != 0 && cropped.rgba[k] != 255);
         }
+        fill_key_border(cropped);
         Image content = resize(cropped, loaded_w * scale, loaded_h * scale);
         Image result = place(content, tile_w * scale, tile_h * scale);
 
