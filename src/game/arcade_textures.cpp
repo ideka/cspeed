@@ -534,7 +534,7 @@ void cspeed::arcade::select_arcade_data() {
             generating = false;
             if (err.empty()) {
                 apply_pack_setting();
-                recompui::message_box("The arcade textures are ready. They can be turned off with Arcade Textures in the Graphics settings.");
+                recompui::message_box("The arcade textures are ready. Turn them on with Arcade Textures in the Enhancements settings.");
             }
             else {
                 recompui::message_box(("The arcade textures could not be prepared.\n" + err).c_str());

@@ -29,7 +29,7 @@ namespace {
     std::atomic<bool> skip_copyright_enabled = false;
     std::atomic<bool> smooth_radar_enabled = true;
     std::atomic<bool> resume_music_enabled = true;
-    std::atomic<bool> arcade_textures_on = true;
+    std::atomic<bool> arcade_textures_on = false;
     std::atomic<uint32_t> sample_rate_value = 48000;
 }
 
@@ -128,11 +128,12 @@ static void add_enhancement_options(recomp::config::Config &config) {
 
     config.add_bool_option(
         keys::arcade_textures,
-        "Arcade Textures",
+        "Arcade Textures (Experimental)",
         "Replaces the textures with the higher resolution ones of the arcade version, where they match. "
+        "Not every texture has a match, and a few matches or transparent edges may look off. "
         "Needs the arcade version's hard drive image, chosen with <b>Arcade Data</b> in the launcher. "
         "In game, F2 hides and shows them for comparison.",
-        true
+        false
     );
     config.add_option_change_callback(keys::arcade_textures, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
         arcade_textures_on = std::get<bool>(cur);
