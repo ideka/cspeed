@@ -396,15 +396,3 @@ before_vram = 0x800892E8
 func = "func_80088ABC"
 text = "{ int cspeed_debug_force_win(void); if (cspeed_debug_force_win()) MEM_H(0x4C, ctx->r3) = 1; }"
 before_vram = 0x80089344
-
-# Fog zones (see src/game/fog_zones.cpp): a zone also counts as reached along the track's path. Right
-# before the zone test compares the car's distance across x ($f2) and z ($f0) with the half size.
-[[patches.hook]]
-func = "func_800C4F34"
-text = "{ void cspeed_fog_zone_x(uint8_t*, recomp_context*); cspeed_fog_zone_x(rdram, ctx); }"
-before_vram = 0x800C52BC
-
-[[patches.hook]]
-func = "func_800C4F34"
-text = "{ void cspeed_fog_zone_z(uint8_t*, recomp_context*); cspeed_fog_zone_z(rdram, ctx); }"
-before_vram = 0x800C52DC

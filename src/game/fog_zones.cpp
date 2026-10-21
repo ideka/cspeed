@@ -1,21 +1,16 @@
-// Fog zones.
+// Fog zones (debug view, CSPEED_FOG_ZONES=1).
 //
 // Tunnels and the like change the fog colour, which is also the sky and ground colour behind the
 // scenery (func_800D1278 sets all three): the end of Mojave Desert, inside the alien spaceship, turns
 // it black. The game does that per player (func_800C4F34, every frame) with a small list of zones per
 // track (count at 0x800C573C + track * 8, list at +4; 0x14 bytes each: x, z, half size, type, colour),
 // squares 90 to 220 units wide. While a player's car is inside one, its colour (or for type 0 the
-// track's own) is faded in over 30 frames. The squares sit on the AI's racing line: a car that passes
-// beside one, which the road is wide enough for, never triggers it, and the sky stays the colour
-// before (white or lavender at Mojave's tunnel, or a grey halfway through a fade).
+// track's own) is faded in over 30 frames.
 //
-// Every car also keeps its place on the track's path: the nearest of its points (+0x10E) on the
-// main road or one of the branches (+0x10C, -1 for the main road), found by func_8009BF2C. The main
-// road's points (x, y, z as s16) are at 0x80142704 (count at 0x80142700), the branches' in a table at
-// 0x8014270C (count in the byte at 0x80142708; 16 bytes each: point count at +0xA, points at +0xC).
-// A zone also counts as reached when the car's path point is at either end of a stretch of the path
-// that runs through the zone's square, wherever the car is across the road. Hooked into the zone
-// test (cspeed.us.toml).
+// The zones have no height; the walls stand on the track's path where it crosses them. Every car keeps
+// its place on the path (func_8009BF2C): the main road's points (x, y, z as s16) are at 0x80142704
+// (count at 0x80142700), the branches' in a table at 0x8014270C (count in the byte at 0x80142708; 16
+// bytes each: point count at +0xA, points at +0xC).
 
 #include <algorithm>
 #include <cmath>
@@ -39,8 +34,7 @@ constexpr gpr BRANCH_COUNT = (gpr)(int32_t)0x80142708;    // u8
 constexpr gpr BRANCHES = (gpr)(int32_t)0x8014270C;
 constexpr uint32_t BRANCH_SIZE = 0x10;
 constexpr uint32_t POINT_SIZE = 6;
-constexpr uint32_t CARS = 0x80151B00;
-constexpr uint32_t CAR_SIZE = 0x2C8;
+constexpr uint32_t CARS = 0x80151B00;          // player 1's car first
 constexpr int MAIN_ROAD = -1;
 
 struct Stretch {
@@ -126,49 +120,13 @@ uint32_t current_zones(uint8_t* rdram, int &count) {
     return zones;
 }
 
-bool car_on_stretch(uint8_t* rdram, int index, gpr car) {
-    int road = MEM_B(0x10C, car);
-    int point = (uint16_t)MEM_HU(0x10E, car);
-    for (const Stretch &s : zone_stretches[index]) {
-        if (s.road == road && (point == s.point || point == s.point + 1)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-// In func_800C4F34's zone loop ($s1 = zone index, $s4 = zone, player in the byte at $sp+0x1F).
-bool zone_reached_on_path(uint8_t* rdram, recomp_context* ctx) {
-    int count;
-    current_zones(rdram, count);
-    int index = (int)ctx->r17;
-    if (index < 0 || index >= count) {
-        return false;
-    }
-    return car_on_stretch(rdram, index, (gpr)(int32_t)(CARS + MEM_BU(0x1F, ctx->r29) * CAR_SIZE));
-}
-
 } // namespace
-
-// Before the zone test's comparisons of the car's distance across x ($f2) and z ($f0) with the zone's
-// half size: no distance when the car has reached the zone along the path.
-extern "C" void cspeed_fog_zone_x(uint8_t* rdram, recomp_context* ctx) {
-    if (zone_reached_on_path(rdram, ctx)) {
-        ctx->f2.fl = 0.0f;
-    }
-}
-
-extern "C" void cspeed_fog_zone_z(uint8_t* rdram, recomp_context* ctx) {
-    if (zone_reached_on_path(rdram, ctx)) {
-        ctx->f0.fl = 0.0f;
-    }
-}
 
 // Debug view (CSPEED_FOG_ZONES=1): each zone's square drawn as translucent walls in the race view,
 // coloured by type (green: back to the track's colour, magenta: a colour, cyan: colour cycle,
-// yellow: pulse, white: type 4) and brighter while player 1 has reached it (in the square or along
-// the path). The walls rise from the path's height where it crosses the zone (or the car's), which
-// can be below the road, and show through the scenery (no depth test). Drawn with the race camera's
+// yellow: pulse, white: type 4) and brighter while player 1's car is inside it. The walls rise from
+// the path's height where it crosses the zone (or the car's), which can be below the road, and show
+// through the scenery (no depth test). Drawn with the race camera's
 // projection, which includes its rotation; like the game's model matrices (multiplied onto the
 // current one), the walls' matrix places them relative to the camera (0x801531D4, x y z) in 1/16
 // world units.
@@ -260,7 +218,7 @@ void cspeed::draw_fog_zones(uint8_t* rdram, uint32_t slot_addr, uint32_t list_ad
             std::abs(base - cam[1]) * scale > DRAW_RANGE) {
             continue;
         }
-        bool reached = (std::abs(cx - car_x) < half && std::abs(cz - car_z) < half) || car_on_stretch(rdram, i, car);
+        bool reached = std::abs(cx - car_x) < half && std::abs(cz - car_z) < half;  // the game's own test
         uint32_t color = zone_color(MEM_W(0xC, zone), reached);
 
         uint32_t mtx_addr = list_addr + COMMANDS_SIZE + drawn * MATRIX_SIZE;
