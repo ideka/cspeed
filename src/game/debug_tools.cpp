@@ -267,6 +267,13 @@ extern "C" int cspeed_debug_force_win() {
 // submission, src/game/graphics.cpp) while the game window has the keyboard:
 //   F2  arcade textures on/off, without changing the option (for comparisons).
 void cspeed::poll_hotkeys() {
+    // Test runs in the background (CSPEED_BACKGROUND) never take controller input, whatever the
+    // Background Input Mode setting (applied from the settings at the first frame and on changes):
+    // a controller in use elsewhere would otherwise drive the test and its menus, and change settings.
+    static const bool background_test = getenv("CSPEED_BACKGROUND") != nullptr;
+    if (background_test) {
+        SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "0");
+    }
     const Uint8 *keys = SDL_GetKeyboardState(nullptr);
     if (pressed(keys, SDL_SCANCODE_F2)) {
         arcade_textures_hidden = !arcade_textures_hidden;

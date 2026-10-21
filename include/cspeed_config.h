@@ -22,6 +22,7 @@ namespace cspeed {
             inline const std::string skip_copyright = "skip_copyright";
             inline const std::string smooth_radar = "smooth_radar";
             inline const std::string resume_music = "resume_music";
+            inline const std::string keyed_textures = "keyed_textures";
             inline const std::string arcade_textures = "arcade_textures";
             inline const std::string arcade_data_path = "arcade_data_path";
         }

@@ -93,6 +93,7 @@ static void add_graphics_options(recomp::config::Config &config) {
         },
         3u
     );
+    RT64::setMaxAnisotropy(levels[3]);  // the default, until settings are loaded
     config.add_option_change_callback(cspeed::configkeys::graphics::anisotropic_filtering, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
         uint32_t index = std::get<uint32_t>(cur);
         RT64::setMaxAnisotropy(index < levels.size() ? levels[index] : levels.back());
@@ -138,6 +139,28 @@ static void add_enhancement_options(recomp::config::Config &config) {
     config.add_option_change_callback(keys::arcade_textures, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
         arcade_textures_on = std::get<bool>(cur);
         cspeed::arcade::apply_pack_setting();
+    });
+
+    // N64 textures drawn opaque whose black parts are holes in the arcade version (RT64 keys them, see
+    // RT64::setKeyedTexture); the arcade textures replace them with their own transparency.
+    static const std::vector<uint64_t> keyed_texture_hashes = {
+        0xfcff2b29ff73bb29ULL,  // Santa Cruz roller coaster's lattice
+    };
+    config.add_bool_option(
+        keys::keyed_textures,
+        "Transparent Lattices",
+        "Makes the black squares in the Santa Cruz roller coaster's lattice see-through, as in the arcade "
+        "version, also when the arcade textures are not used.",
+        true
+    );
+    // Callbacks only run once settings are loaded or changed, not for the defaults of a first start.
+    for (uint64_t hash : keyed_texture_hashes) {
+        RT64::setKeyedTexture(hash, true);
+    }
+    config.add_option_change_callback(keys::keyed_textures, [](ConfigValueVariant cur, ConfigValueVariant, OptionChangeContext) {
+        for (uint64_t hash : keyed_texture_hashes) {
+            RT64::setKeyedTexture(hash, std::get<bool>(cur));
+        }
     });
 
     config.add_bool_option(
