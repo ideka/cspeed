@@ -282,6 +282,7 @@ namespace {
 constexpr uint32_t G_EX_SETVIEWPORTALIGN_V1 = 0x000007;
 constexpr uint32_t NEEDLE_COLOR = 0xC80000FF;
 constexpr uint32_t NEEDLE_DL_BASE = PROLOGUE_BASE + 0x1000;   // one list per prologue slot
+constexpr uint32_t FOG_ZONES_DL_BASE = PROLOGUE_BASE + 0x2000; // CSPEED_FOG_ZONES, one per prologue slot
 constexpr uint32_t NEEDLE_DL_SIZE = 128;
 constexpr gpr VIEWPORTS = (gpr)(int32_t)0x80022FB0;            // pointer to this frame's Vp array
 
@@ -430,6 +431,27 @@ uint32_t find_needle(uint8_t* rdram, uint32_t dl, uint32_t* tri) {
     return 0;
 }
 
+// The end of the race view's scene in the frame's top-level display list: the command after its last
+// matrix pop (each object is drawn with a pushed matrix) before the call to the HUD's list, which is
+// where the needle's setup starts. 0 if not found.
+uint32_t find_scene_end(uint8_t* rdram, uint32_t dl) {
+    uint32_t last_pop = 0;
+    for (int i = 0; i < 20000; i++, dl += 8) {
+        uint32_t w0 = (uint32_t)MEM_W(0, (gpr)(int32_t)dl);
+        uint32_t w1 = (uint32_t)MEM_W(4, (gpr)(int32_t)dl);
+        if ((w0 >> 24) == 0xDF) {
+            return 0;
+        }
+        if (w0 == 0xD8380002) {
+            last_pop = dl;
+        }
+        if (w0 == 0xDE000000 && w1 >= HUD_DL_BASE && w1 < HUD_DL_BASE + 2 * HUD_DL_SIZE) {
+            return last_pop != 0 ? last_pop + 8 : 0;
+        }
+    }
+    return 0;
+}
+
 void anchor_needle(uint8_t* rdram, uint32_t vtx_addr, uint32_t tri_addr, uint32_t slot) {
     gpr cmd = (gpr)(int32_t)vtx_addr;
     gpr tri = (gpr)(int32_t)tri_addr;
@@ -515,5 +537,18 @@ extern "C" void cspeed_widescreen_frame_submit(uint8_t* rdram, recomp_context* c
     needle_drawn_last_frame = (needle != 0);
     if (needle_drawn_last_frame && expand_enabled()) {
         anchor_needle(rdram, needle, tri, (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE);
+    }
+    // Debug view, with the race camera: after the needle's triangles (whose slot is empty once the
+    // needle is anchored), or right after the scene when there is no needle.
+    // Drawing them between the scene and the needle's setup loses the needle.
+    if (cspeed::fog_zones_visible()) {
+        uint32_t slot = (prologue - PROLOGUE_BASE) / PROLOGUE_SIZE;
+        uint32_t list = FOG_ZONES_DL_BASE + slot * cspeed::FOG_ZONES_LIST_SIZE;
+        if (needle_drawn_last_frame) {
+            cspeed::draw_fog_zones(rdram, tri, list, true);
+        }
+        else if (uint32_t scene_end = find_scene_end(rdram, dl); scene_end != 0) {
+            cspeed::draw_fog_zones(rdram, scene_end, list, false);
+        }
     }
 }

@@ -1,6 +1,7 @@
 #ifndef __CSPEED_SUPPORT_H__
 #define __CSPEED_SUPPORT_H__
 
+#include <cstdint>
 #include <functional>
 #include <filesystem>
 #include <vector>
@@ -20,6 +21,12 @@ namespace cspeed {
     // Hotkeys available without the debug tools (src/game/debug_tools.cpp), once per frame.
     void poll_hotkeys();
     bool debug_no_fog();
+    // CSPEED_FOG_ZONES=1 (src/game/fog_zones.cpp): draws the fog zones. Builds a display list at list_addr
+    // (FOG_ZONES_LIST_SIZE bytes) that draws them and runs the command at slot_addr (before or after them),
+    // and calls it from there.
+    constexpr uint32_t FOG_ZONES_LIST_SIZE = 0xC00;
+    bool fog_zones_visible();
+    void draw_fog_zones(uint8_t* rdram, uint32_t slot_addr, uint32_t list_addr, bool replaced_first);
 
 // Apple specific methods that usually require Objective-C. Implemented in support_apple.mm.
 #ifdef __APPLE__

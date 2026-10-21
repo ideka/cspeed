@@ -106,7 +106,9 @@ how function boundaries and names are produced, and the debugging workflow.
 `./debug.sh [track]` starts the game with the debug tools on (`CSPEED_DEBUG=1`), and with a track
 number (0-15) goes straight into a race on it. Keys: F1 free camera, F3 culling, F5 fog, F6 far view,
 F7 world at 1/4 scale (a draw distance experiment), F8/F9 the game's built-in debug menus, F10 to win
-a race and reach the credits. Details are at the top of `src/game/debug_tools.cpp`.
+a race and reach the credits. Details are at the top of `src/game/debug_tools.cpp`. With
+`CSPEED_FOG_ZONES=1`, races show the fog zones (the squares where tunnels and the like change the sky
+colour) as translucent walls; see `src/game/fog_zones.cpp`.
 
 ## How it works
 
